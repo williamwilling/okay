@@ -1,0 +1,377 @@
+# Design Log
+
+Since I don't plan to develop and maintain this project for very long, I'll keep a log of the design considerations that went into this validator, so that anyone interested in taking it over, knows where I'm coming from. If you find yourself asking _what was he thinking?_, you should read this log.
+
+* [Background](#background)
+* [Syntax](#syntax)
+  * [Function call style](#function-call-style)
+  * [Fluent style](#fluent-style)
+  * [Dictionary style](#dictionary-style)
+  * [Comparison](#comparison)
+* [Error reporting](#error-reporting)
+  * [Error location](#error-location)
+  * [Showing errors](#showing-errors)
+* [Data sources](#data-sources)
+* [Data sinks](#data-sinks)
+* [Parallel processing](#parallel-processing)
+
+## Background
+
+Scrapinghub sent us a sample of a thousand accommodations in JSON Lines format. We needed to check if the adhered to the schema we agreed upon with them, so I put together a simple validator and it served it's purpose. It was a fun little project and I now I want to expand on it. I have some nice ideas for improvements, but if I'm putting in the effort, I might as well make it useful in the long term. Since the original validator was a quick, one-off project, I didn't bother with things like unit tests or even version control. So, I'm starting from scratch, doing it right (or at least better) this time.
+
+## Basic concept
+
+1. You define your data schema in Python.
+2. You obtain a list of data objects.
+3. You run the validator, which will check if each of the objects adhere to the schema.
+
+Nothing earth-shattering. The fun part is coming up with a way to define data schemas that is both flexible and easy to use.
+
+## Syntax
+
+Let's say we want to encode the following data schema.
+
+field                         | type            | required | remarks
+------------------------------|-----------------|----------|---------
+`metadata`                    | object          | yes      |
+`metadata.accommodation_id`   | int             | yes      | must be positive
+`accommodation`               | object          | yes      |
+`accommodation.name`          | string          | yes      |
+`accommodation.geo`           | object          | no       |
+`accommodation.geo.longitude` | string          | yes      | must be a number (the type is string to prevent rounding issues)
+`accommodation.geo.latitude`  | string          | yes      | must be a number (the type is string to prevent rounding issues)
+`accommodation.images`        | list of objects | no       |
+`accommodation.images[].size` | int             | no       | must be positive
+`accommodation.images[].url`  | string          | yes      | must be a URL
+
+* This doesn't cover all possible scenarios, but has enough variation to get a good impression of different syntaxes.
+* Nested fields use a `.` as a separator, meaning that field names can't contain a `.`. I think that's a reasonable assumption.
+* A nested field can be required, even though it's parent is not. What this means is that the nested field must be present if the parent is.
+
+Here are the basic styles I want to consider for turning this schema into Python. (I considered several variations for each of these styles, but I'm not going to list them all here.) Goals are: flexibility and ease-of-use.
+
+### Function call style
+
+```python
+def schema(validator):
+    number_pattern = r'\-?\d+\(.\d+)?'
+    url_pattern = r'https?://.+'
+
+    validator.required('metadata', type='object')
+    validator.required('metadata.accommodation_id', type='int', minimum=1)
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.name', type='string')
+    validator.optional('accommodation.geo', type='object')
+    validator.required('accommodation.geo.longitude', type='string', regex=number_pattern)
+    validator.required('accommodation.geo.latitude', type='string', regex=number_pattern)
+    validator.optional('accommodation.images', type='list of object')
+    validator.optional('accommodation.images[].size', type='int', minimum=0)
+    validator.optional('accommodation.images[].url', type='string', regex=url_pattern)
+```
+
+### Fluent style
+
+```python
+def schema(validator):
+    number_pattern = r'\-?\d+\(.\d+)?'
+    url_pattern = r'https?://.+'
+
+    validator.required('metadata').type('object')
+    validator.required('metadata.accommodation_id').type('number').minimum(1)
+    validator.required('accommodation').type('object')
+    validator.required('accommodation.name').type('string')
+    validator.optional('accommodation.geo').type('object')
+    validator.required('accommodation.geo.longitude').type('string').regex(number_pattern)
+    validator.required('accommodation.geo.latitude').type('string').regex=(number_pattern)
+    validator.optional('accommodation.images').type('list of object')
+    validator.optional('accommodation.images[].size').type('number').minimum(0)
+    validator.optional('accommodation.images[].url').type('string').regex(url_pattern)
+```
+
+### Dictionary style
+
+```python
+def schema(validator):
+    number_pattern = r'\-?\d+\(.\d+)?'
+    url_pattern = r'https?://.+'
+
+    schema = {
+        'metadata': { required=True, type='object' },
+        'metadata.accommodation_id': { required=True, type='number', minimum=1 },
+        'accommodation': { required=True, type='object' },
+        'accommodation.name': { required=True, type='string' },
+        'accommodation.geo': { required=False, type='object' },
+        'accommodation.geo.longitude': { required=True, type='string', regex=number_pattern },
+        'accommodation.geo.latitude': { required=True, type='string', regex=number_pattern },
+        'accommodation.images': { required=False, type='list of object' },
+        'accommodation.images[].size': { required=False, type='number', minimum=0 },
+        'accommodation.images[].url': { required=True, type='string', regex=url_pattern }
+    }
+
+    validator.apply(schema)
+```
+
+### Comparison
+
+With the fluent style, you can't put common arguments in a variable. For example, longitude and latitude have the same schema definition, so in dictionary style, you can write:
+
+```python
+geo_number = { required=True, type='string', regex=number_pattern }
+schema = {
+    'accommodation.geo.longitude': geo_number,
+    'accommodation.geo.latitude': geo_number
+}
+```
+
+In function call style, it would look like this:
+
+```python
+geo_number = { type='string', regex=number_pattern }
+validator.required('accommodation.geo.longitude', **geo_number)
+validator.required('accommodation.geo.latitude', **geo_number)
+```
+
+There is no equivalent for the fluent style. Also, with the fluent style, the validator doesn't have the full context when it does validation; it only gets one argument at a time. This could be relevant for error messages, logging, or complex validations. Say, for example, that you have this schema:
+
+```python
+validator.required('hour').type('int').minimum(0).maximum(23)
+```
+
+If `hour` is outside of the specified range, you may want to produce an error message like _`hour` must be between 0 and 24_. You can't do that with the fluent style, because neither the call to `minimum()` nor the call to `maximum()` has enough information. Sure, you could solve it by replacing those two functions with a single one called `range()`, but there are bound to be other situations like this where such a solution isn't available. Function call style and dictionary style don't have this problem.
+
+At this point, I'll strike fluent style off the list.
+
+Function call style and dictionary style both look good to me. I'm not too concerned about repeating `validator` each time in function call style; that'll be easy enough to get rid off. My gut feeling is that function call style is a bit more flexible in complex situations, but I can't come up with an example, so maybe I'm just imagining things. (Can you imagine things with your gut?) What I do like about dictionary style, is that each line starts with the field name instead of with `required` or `optional`.
+
+In function call style the order may matter.
+
+```python
+validator.required('accommodation.geo.longitude', type='string', regex=number_pattern)
+validator.required('accommodation.geo.latitude', type='string', regex=number_pattern)
+validator.optional('accommodation.geo', type='object')
+```
+
+`accommodation.geo` is optional, so if the field is missing from the data, the validator shouldn't produce an error, but it doesn't find that out until the third line. In dictionary style you don't have this problem, because there the validator receives the entire schema at once. This seems like a minor issue to me.
+
+In both styles, we can make nested fields a bit easier to deal with.
+
+```python
+validator.required('accommodation').type('object')
+validator.required('.name').type('string')
+validator.optional('accommodation.geo').type('object')
+validator.required('.longitude').type('string').regex(number_pattern)
+validator.required('.latitude').type('string').regex=(number_pattern)
+validator.optional('accommodation.images').type('list of object')
+validator.optional('.size').type('number').minimum(0)
+validator.optional('.url').type('string').regex(url_pattern)
+```
+
+```python
+schema = {
+    'metadata': { required=True, type='object' },
+    '.accommodation_id': { required=True, type='number', minimum=1 },
+    'accommodation': { required=True, type='object' },
+    '.name': { required=True, type='string' },
+    'accommodation.geo': { required=False, type='object' },
+    '.longitude': { required=True, type='string', regex=number_pattern },
+    '.latitude': { required=True, type='string', regex=number_pattern },
+    'accommodation.images': { required=False, type='list of object' },
+    '.size': { required=False, type='number', minimum=0 },
+    '.url': { required=True, type='string', regex=url_pattern }
+}
+```
+
+Let's see what happens if we have a schema that requires a bit more flexibility.
+
+field                      | type   | required | remarks
+---------------------------|--------|----------|---------
+`accommodation`            | object | yes      |
+`accommodation.type`       | string | yes      | Either `hotel` or `alternative`.
+`accommodation.name`       | string | yes      |
+`accommodation.unit_count` | int    |          | Required when type is `alternative`, not allowed when type is `hotel`.
+
+In function call style:
+
+```python
+def schema(validator):
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.type', type='string', options=['hotel', 'alternative'])
+    validator.required('accommodation.name', type='string')
+    
+    if validator.document.type == 'alternative':
+        validator.required('unit_count', type='int', minimum=0)
+    else:
+        validator.disallowed('unit_count')
+```
+
+In dictionary style:
+
+```python
+def schema(validator):
+    schema = {
+        'accommodation': { required=True, type='object' },
+        'accommodation.type': { required=True, type='string', options=['hotel', 'alternative']},
+        'accommodation.name': { required=True, type='string' }
+    }
+
+    if validator.document.type == 'alternative':
+        schema = {
+            **schema,
+            'accommodation.unit_count': { required=True, type='int', minimum=0 }
+        }
+    else:
+        schema = {
+            **schema,
+            'accommodation.unit_count': { disallowed=True }
+        }
+    
+    validator.apply(schema)
+```
+
+Function call style looks cleaner to me in this scenario. Actually, these examples aren't entirely correct. What if validation of `accommodation.type` fails?
+
+```python
+def schema(validator):
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.name', type='string')
+    
+    if validator.required('accommodation.type', type='string', options=['hotel', 'alternative']):
+        if validator.document.type == 'alternative':
+            validator.required('unit_count', type='int', minimum=0)
+        else:
+            validator.disallowed('unit_count')
+```
+
+```python
+def schema(validator):
+    schema = {
+        'accommodation': { required=True, type='object' },
+        'accommodation.type': { required=True, type='string', options=['hotel', 'alternative']},
+        'accommodation.name': { required=True, type='string' }
+    }
+    validator.apply(schema)
+
+    if validator.is_valid('accommodation.type'):
+        if validator.document.type == 'alternative':
+            schema = { 'accommodation.unit_count': { required=True, type='int', minimum=0 } }
+        else:
+            schema = { 'accommodation.unit_count': { disallowed=True } }
+        validator.apply(schema)
+```
+
+This, too, looks better to me in function call style. Also, it's just too easy to forget to call `apply()`. I also like that function call style looks like code. If you want to define a schema as data, you might as well do it in YAML or something. However, that's not flexible enough to deal with a situation like the one above.
+
+Okay, function call style wins by a nose.
+
+## Error reporting
+
+There are two challenges when it comes to reporting errors.
+
+* How do you report exactly where the error occurred?
+* How do you show the errors in a helpful way?
+
+Keep in mind that we may be validating many thousands of documents at once.
+
+### Error location
+
+Suppose we are processing a file in JSON Lines format, containing many documents. Letting the user know which document a message is referring to, is a simple matter of recording the line number.
+
+line | message
+-----|--------
+   3 | missing field `id`
+  18 | value for `hour` is out of range; must be 0 <= hour < 24
+
+This works for line-based formats like JSON Lines and CSV, but not so much for binary formats like Avro. Probably the best thing you can do in that case, is to report the document number, assuming documents are at least stored in sequential order. This works out nicely for line-based formats as well. I have no clue what to do about column-based formats, so I'll just pretend they don't exist.
+
+document number | message
+----------------|--------
+  3             | missing field `id`
+ 18             | value for `hour` is out of range; must be 0 <= hour < 24
+
+If we want to allow validation of multiple files at once, we should also add the file name.
+
+file           | document number | message
+---------------|-----------------|--------
+./yesterday.jl |               3 | missing field `id`
+./today.jl     |              18 | value for `hour` is out of range; must be 0 <= hour < 24
+
+Of course, this only works if the data is stored in files. If you want to validate data in, for example, DynamoDB tables, you need to use the table names instead.
+
+Reporting where in the document an error occurs can't be done by counting characters. It would work for a text-based format like JSON, but it would be useless for a binary format like Avro. I think using the full field names is the best we can do. If we have to report on a list element, we can add the index.
+
+file           | document number | field         | message
+---------------|-----------------|---------------|--------
+./yesterday.jl |               3 | id            | missing field
+./today.jl     |              18 | hour          | out of range; must be 0 <= hour < 24
+./today.jl     |              22 | images[4].url | must be of type string
+
+### Showing errors
+
+When you are validating many documents that were all generated by the same process, chances are that some errors occur in all documents. This can make the output a bit unwieldy.
+
+```
+./yesterday.jl:1:id  missing field
+./yesterday.jl:1:hour  out of range
+./yesterday.jl:2:id  missing field
+./yesterday.jl:3:id  missing field
+./yesterday.jl:3:hour  out of range
+./yesterday.jl:3:images[4].url  must be of type string
+./yesterday.jl:4:id  missing field
+```
+
+Not repeating the file name and document number may already make this a bit easier to read.
+
+```
+./yesterday.jl:1
+    id  missing field
+    hour  out of range
+./yesterday.jl:2
+    id  missing field
+./yesterday.jl:3
+    id  missing field
+    hour  out of range
+    images[4].url  must be of type string
+./yesterday.jl:4
+    id  missing field
+```
+
+If you have a lot of recurring messages, grouping by message might be better.
+
+```
+id  missing field
+    all documents
+hour  out of range
+    ./yesterday.jl:1
+    ./yesterday.jl:3
+images[4].url  must be of type string
+    ./yesterday.jl:3
+```
+
+The most convenient format probably depends on the user's use case, so the most important takeaway for now is that formatting and grouping of the messages should be flexible.
+
+You could keep the entire document in memory so that you can show it and highlight any validation errors, but if you're validating a lot of documents, it would require a huge amount of memory. Of course, if you display messages as soon as they occur, it wouldn't be a problem (because you don't need to keep the messages and documents in memory), but then you would lose the possibility to group by message. There's also the question of how to keep the document in memory: in it's original format? How would that work for Avro? Or would you keep it as a Python dictionary and let the reporter handle the conversion? This seems like more trouble than it's worth. If you want to see the validation error in context, you will just have to open the file or data store manually. If this is too much hassle, we'll have to write a separate tool that can make it easier.
+
+## Data sources
+
+The validator shouldn't care where the data comes from. This means two things:
+* It shouldn't matter where the data is stored (file system, S3, DynamoDB, etc.).
+* It shouldn't matter in what format the data is stored (JSON, Avro, CSV, etc.).
+
+Potentially, the amount of documents you want to validate is huge, so reading them all into memory is not a viable strategy. This means that the validator should assume that it will receive documents one-by-one and not all at once.
+
+In order to deal with multiple formats, we need to convert any input format to an intermediate format that the validator can use. The obvious intermediate format here is a Python dictionary.
+
+## Data sinks
+
+It occurs to me that for large datasets, you may want more than just a report of validation errors. If you're processing 10 GB of data, you don't want to read it in once to do validation and then for a second time to filter out the invalid documents. It would be much more convenient if you can direct documents somewhere. Write valid documents to this S3 bucket, write invalid documents to this SQS queue, write logs to Cloudwatch; something like that. If we're already streaming in documents, we might as well also stream them out.
+
+All of this should be separate from the validator proper, of course. There should be a coordinator that you can initialize with some data sources and some data sinks.
+
+## Parallel processing
+
+Given that we may want to run the validator on an a huge set of documents, it would be nice if we could run the validator on subsets in parallel. This adds some requirements.
+* The data source reader needs to be able to read subsets.
+* We need some way to determine what the subsets should be.
+* We need to be able to combine the validation results of the subsets.
+
+I don't want to spend a lot of time at this point on making parallel processing work. As long as the validator doesn't care where its input comes from, it should be possible to add parallelism later by extending the data source readers and the error reporter.
