@@ -14,6 +14,8 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
 * [Data sources](#data-sources)
 * [Data sinks](#data-sinks)
 * [Parallel processing](#parallel-processing)
+* [Validation](#validation)
+  * [Extra fields](#extra-fields)
 
 ## Background
 
@@ -375,3 +377,11 @@ Given that we may want to run the validator on an a huge set of documents, it wo
 * We need to be able to combine the validation results of the subsets.
 
 I don't want to spend a lot of time at this point on making parallel processing work. As long as the validator doesn't care where its input comes from, it should be possible to add parallelism later by extending the data source readers and the error reporter.
+
+## Validation
+
+### Extra fields
+
+When a document contains fields that don't occur in the schema, the validator can do one of two things: ignore the fields or report the fields. The schema author should be able to choose either. The question is, though, what is the default?
+
+If we silently accept extra fields by default, the schema author may never find out that he forgot to turn on reporting for extra fields. However, if we report on extra fields by default, the first test with an extra field will alert the author to the fact that he needs to turn reporting for extra fields off. So, reporting by default is the safer option.
