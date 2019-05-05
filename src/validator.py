@@ -1,7 +1,8 @@
 class Message:
-    def __init__(self, type, field):
+    def __init__(self, type, field, expected=None):
         self.type = type
         self.field = field
+        self.expected = expected
 
 class Validator:
     def __init__(self, schema):
@@ -19,13 +20,32 @@ class Validator:
 
         return len(self.messages) == 0
     
-    def required(self, field):
+    def required(self, field, document=None, prefix=''):
+        document = document or self._document
+
+        if '.' in field:
+            head, tail = field.split('.', 1)
+            self._specified_fields.add(head)
+
+            if head in document:
+                if isinstance(document[head], dict):
+                    prefix = f'{prefix}{head}.'
+                    return self.required(tail, document[head], prefix)
+                else:
+                    self.messages.append(Message(
+                        type='incorrect_type',
+                        field=f'{prefix}{head}',
+                        expected='object'
+                    ))
+            else:
+                return
+
         self._specified_fields.add(field)
 
-        if field not in self._document:
+        if field not in document:
             self.messages.append(Message(
                 type='missing_field',
-                field=field
+                field=f'{prefix}{field}'
             ))
     
     def optional(self, field):

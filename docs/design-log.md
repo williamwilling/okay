@@ -16,6 +16,7 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
 * [Parallel processing](#parallel-processing)
 * [Validation](#validation)
   * [Extra fields](#extra-fields)
+  * [Nested fields](#nested-fields)
 
 ## Background
 
@@ -385,3 +386,58 @@ I don't want to spend a lot of time at this point on making parallel processing 
 When a document contains fields that don't occur in the schema, the validator can do one of two things: ignore the fields or report the fields. The schema author should be able to choose either. The question is, though, what is the default?
 
 If we silently accept extra fields by default, the schema author may never find out that he forgot to turn on reporting for extra fields. However, if we report on extra fields by default, the first test with an extra field will alert the author to the fact that he needs to turn reporting for extra fields off. So, reporting by default is the safer option.
+
+### Nested fields
+
+Suppose you have a schema that says `accommodation.geo.latitude` is required. What should happen if the field is missing? Well, that depends.
+
+```json
+{
+    "accommodation": {
+        "geo": {}
+    }
+}
+```
+
+This is the simple case: validation should fail with a message that `accommodation.geo.latitude` is missing.
+
+```json
+{
+    "accommodation": {}
+}
+```
+
+The answer to this case is less obvious: it should pass validation. The reason is that `accommodation.geo` may be optional, in which case it's fine that `accommodation.geo.latitude` is missing. And if `accommodation.geo` is required, it will result in an error message, making a message for `accommodation.geo.latitude` redundant.
+
+To belabor the point, suppose you have the following schema.
+
+```python
+validator.optional('accommodation.geo')
+validator.required('accommodation.geo.latitude')
+```
+
+This means that `accommodation.geo` is optional, but if it does exist, it must have a `latitude`. This would be impossible to express if the second rule in the schema automatically made `accommodation.geo` required.
+
+Note that in the schema above, the first rule doesn't do anything; leave it out and the schema is the same. You would only include it if you want to do additional validation on the field, like checking its type.
+
+```python
+validator.optional('accommodation.geo', type='object')
+validator.required('accommodation.geo.latitude')
+```
+
+Actually, this should also be unnecessary, because the second rule already implies that `accommodation.geo` is an object. I can't come up with a scenario where you would want to explicitly mark the parent as optional if you already have a rule for its child. Still, the option should be there in case someone comes up with a sensible custom validation that I can't think of right now.
+
+Another implicit effect of having a rule for a nested field, should be that all parents are considered expected fields. If your only validation rule is that `accommodation.geo.latitude` is required, you don't want to get messages that `accommodation` and `accommodation.geo` are extra fields.
+
+Here's another interesting case regarding nested fields. Take a look at the following schema and document.
+
+```python
+validator.required('accommodation')
+validator.required('accommodation.geo')
+```
+
+```json
+{}
+```
+
+Clearly, validation will fail, but what should the output be. The first rule results in a message, because `accommodation` is missing, but what about the second rule? `accommodation.geo` is also missing, but what is the value in reporting that? To keep the output from cluttering up with loads of unnecessary messages, the validator shouldn't report on `accommodation.geo`: if the parent is required and missing, we can stop validating the children.

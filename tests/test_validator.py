@@ -81,6 +81,75 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_a_nested_required_field(self):
+        def schema(validator):
+            validator.required('accommodation.geo.latitude')
+        
+        document = {
+            'accommodation': {
+                'geo': {
+                    'latitude': '12.5345'
+                }
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+
+    def test_it_reports_a_missing_required_field(self):
+        def schema(validator):
+            validator.required('accommodation.name')
+        
+        document = { 'accommodation': {} }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        message = validator.messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation.name'
+    
+    def test_it_accepts_a_missing_required_field_if_its_parent_is_missing(self):
+        def schema(validator):
+            validator.required('accommodation.name')
+        
+        document = {}
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_reports_if_parent_field_is_not_an_object(self):
+        def schema(validator):
+            validator.required('accommodation.name')
+        
+        document = { 'accommodation': 'name' }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        message = validator.messages[0]
+        assert message.type == 'incorrect_type'
+        assert message.field == 'accommodation'
+        assert message.expected == 'object'
+    
+    def test_it_skips_nested_field_if_required_parent_is_missing(self):
+        def schema(validator):
+            validator.required('accommodation')
+            validator.required('accommodation.name')
+
+        document = {}
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.field == 'accommodation'
 
 
 def empty_schema(validator):
