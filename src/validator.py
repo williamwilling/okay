@@ -1,13 +1,7 @@
-class Message:
-    def __init__(self, type, field, expected=None):
-        self.type = type
-        self.field = field
-        self.expected = expected
-
 class Validator:
     def __init__(self, schema):
         self._schema = schema
-        self._specified_fields = set()
+        self._validated_fields = set()
         self.messages = []
     
     def validate(self, document):
@@ -20,45 +14,88 @@ class Validator:
 
         return len(self.messages) == 0
     
-    def required(self, field, document=None, prefix=''):
-        document = document or self._document
-
-        if '.' in field:
-            head, tail = field.split('.', 1)
-            self._specified_fields.add(head)
-
-            if head in document:
-                if isinstance(document[head], dict):
-                    prefix = f'{prefix}{head}.'
-                    return self.required(tail, document[head], prefix)
-                else:
-                    self.messages.append(Message(
-                        type='incorrect_type',
-                        field=f'{prefix}{head}',
-                        expected='object'
-                    ))
-            else:
-                return
-
-        self._specified_fields.add(field)
-
-        if field not in document:
+    def required(self, field):
+        try:
+            value = self._get_value(field)
+        except MissingParentError:
+            return
+        except InvalidParentError as error:
+            self.messages.append(Message(
+                type='invalid_type',
+                field=str(error),
+                expected='object'
+            ))
+            return
+        except MissingFieldError:
             self.messages.append(Message(
                 type='missing_field',
-                field=f'{prefix}{field}'
+                field=field
             ))
+            return
     
     def optional(self, field):
-        self._specified_fields.add(field)
-    
+        try:
+            value = self._get_value(field)
+        except (MissingParentError, MissingFieldError):
+            return
+        except InvalidParentError as error:
+            self.messages.append(Message(
+                type='invalid_type',
+                field=str(error),
+                expected='object'
+            ))
+            return
+
     def ignore_extra_fields(self):
         for field in self._document.keys():
-            self._specified_fields.add(field)
+            self._validated_fields.add(field)
+    
+    def _get_value(self, field):
+        if field is None:
+            return self._document
+        
+        self._validated_fields.add(field)
+
+        parent_path, child_name = self._split_field_name(field)
+        try:
+            parent = self._get_value(parent_path)
+        except MissingFieldError as error:
+            raise MissingParentError(str(error))
+
+        if not isinstance(parent, dict):
+            raise InvalidParentError(parent_path)
+        elif not child_name in parent:
+            raise MissingFieldError(field)
+
+        return parent[child_name]
+    
+    def _split_field_name(self, field):
+        if not '.' in field:
+            return (None, field)
+
+        return field.rsplit('.', 1)
     
     def _report_extra_fields(self):
         for field in self._document.keys():
-            if field not in self._specified_fields:
+            if field not in self._validated_fields:
                 self.messages.append(Message(
                     type='extra_field',
                     field=field
                 ))
+
+
+class Message:
+    def __init__(self, type, field, expected=None):
+        self.type = type
+        self.field = field
+        self.expected = expected
+
+
+class MissingParentError(Exception):
+    pass
+
+class InvalidParentError(Exception):
+    pass
+
+class MissingFieldError(Exception):
+    pass

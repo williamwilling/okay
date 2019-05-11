@@ -24,6 +24,7 @@ class TestValidator:
         is_valid = validator.validate(document)
 
         assert not is_valid
+        assert len(validator.messages) == 1
         message = validator.messages[0]
         assert message.type == 'missing_field'
         assert message.field == 'metadata'
@@ -45,6 +46,7 @@ class TestValidator:
         is_valid = validator.validate(document)
 
         assert not is_valid
+        assert len(validator.messages) == 1
         message = validator.messages[0]
         assert message.type == 'extra_field'
         assert message.field == 'metadata'
@@ -108,6 +110,7 @@ class TestValidator:
         is_valid = validator.validate(document)
 
         assert not is_valid
+        assert len(validator.messages) == 1
         message = validator.messages[0]
         assert message.type == 'missing_field'
         assert message.field == 'accommodation.name'
@@ -132,8 +135,9 @@ class TestValidator:
         is_valid = validator.validate(document)
 
         assert not is_valid
+        assert len(validator.messages) == 1
         message = validator.messages[0]
-        assert message.type == 'incorrect_type'
+        assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
         assert message.expected == 'object'
     
@@ -150,6 +154,21 @@ class TestValidator:
         assert len(validator.messages) == 1
         message = validator.messages[0]
         assert message.field == 'accommodation'
+    
+    def test_it_reports_a_parent_that_is_not_an_object(self):
+        def schema(validator):
+            validator.required('accommodation.geo.latitude')
+        
+        document = { 'accommodation': True }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation'
+        assert message.expected == 'object'
 
 
 def empty_schema(validator):
