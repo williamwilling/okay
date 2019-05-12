@@ -1,3 +1,6 @@
+import type_validators
+from message import Message
+
 class Validator:
     def __init__(self, schema):
         self._schema = schema
@@ -88,19 +91,15 @@ class Validator:
                 ))
     
     def _validate(self, field, value, type):
-        if type == 'object' and not isinstance(value, dict):
-            self.messages.append(Message(
-                type='invalid_type',
-                field=field,
-                expected='object'
-            ))
+        if type is None:
+            return
+        
+        validator_name = f'validate_{type}'
+        type_validator = getattr(type_validators, validator_name)
 
-
-class Message:
-    def __init__(self, type, field, expected=None):
-        self.type = type
-        self.field = field
-        self.expected = expected
+        message = type_validator(field, value)
+        if not message is None:
+            self.messages += [ message ]
 
 
 class MissingParentError(Exception):

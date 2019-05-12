@@ -1,0 +1,1 @@
+from .object_validator import validate_object
