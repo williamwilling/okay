@@ -257,6 +257,17 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_a_value_with_boolean_type(self):
+        def schema(validator):
+            validator.required('has_bathroom', type='bool')
+        
+        document = { 'has_bathroom': False }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
 
 def empty_schema(validator):
     pass
