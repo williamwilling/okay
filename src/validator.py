@@ -14,7 +14,7 @@ class Validator:
 
         return len(self.messages) == 0
     
-    def required(self, field):
+    def required(self, field, type=None):
         try:
             value = self._get_value(field)
         except MissingParentError:
@@ -32,8 +32,10 @@ class Validator:
                 field=field
             ))
             return
+        
+        self._validate(field, value, type)
     
-    def optional(self, field):
+    def optional(self, field, type=None):
         try:
             value = self._get_value(field)
         except (MissingParentError, MissingFieldError):
@@ -45,6 +47,8 @@ class Validator:
                 expected='object'
             ))
             return
+        
+        self._validate(field, value, type)
 
     def ignore_extra_fields(self):
         for field in self._document.keys():
@@ -82,6 +86,14 @@ class Validator:
                     type='extra_field',
                     field=field
                 ))
+    
+    def _validate(self, field, value, type):
+        if type == 'object' and not isinstance(value, dict):
+            self.messages.append(Message(
+                type='invalid_type',
+                field=field,
+                expected='object'
+            ))
 
 
 class Message:

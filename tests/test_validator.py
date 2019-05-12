@@ -169,6 +169,58 @@ class TestValidator:
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
         assert message.expected == 'object'
+    
+    def test_it_accepts_a_required_object_with_the_correct_type(self):
+        def schema(validator):
+            validator.required('accommodation', type='object')
+        
+        document = { 'accommodation': {} }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_reports_a_required_oject_with_the_incorrect_type(self):
+        def schema(validator):
+            validator.required('accommodation', type='object')
+        
+        document = { 'accommodation': True }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation'
+        assert message.expected == 'object'
+    
+    def test_it_accepts_an_optional_object_with_the_correct_type(self):
+        def schema(validator):
+            validator.optional('trace', type='object')
+        
+        document = { 'trace': {} }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_reports_an_optional_object_with_the_incorrect_type(self):
+        def schema(validator):
+            validator.optional('trace', type='object')
+        
+        document = { 'trace': True }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'trace'
+        assert message.expected == 'object'
 
 
 def empty_schema(validator):
