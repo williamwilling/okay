@@ -1,1 +1,2 @@
+from .custom_validator import validate_custom
 from .object_validator import validate_object

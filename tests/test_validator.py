@@ -181,7 +181,7 @@ class TestValidator:
         assert is_valid
         assert validator.messages == []
     
-    def test_it_reports_a_required_oject_with_the_incorrect_type(self):
+    def test_it_reports_a_required_object_with_the_incorrect_type(self):
         def schema(validator):
             validator.required('accommodation', type='object')
         
@@ -221,6 +221,20 @@ class TestValidator:
         assert message.type == 'invalid_type'
         assert message.field == 'trace'
         assert message.expected == 'object'
+    
+    def test_it_accepts_a_value_with_custom_type(self):
+        def schema(validator):
+            def custom_validator(field, value):
+                pass
+            
+            validator.required('accommodation', type='custom', validator=custom_validator)
+        
+        document = { 'accommodation': {} }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
 
 
 def empty_schema(validator):
