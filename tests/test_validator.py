@@ -235,7 +235,17 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_a_value_with_number_type(self):
+        def schema(validator):
+            validator.required('stars', type='number', min=0, max=5)
+        
+        document = { 'stars': 3 }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
 
+        assert is_valid
+        assert validator.messages == []
 
 def empty_schema(validator):
     pass
