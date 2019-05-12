@@ -290,6 +290,32 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_list_of_valid_scalars(self):
+        def schema(validator):
+            validator.required('scores[]', type='number')
+        
+        document = { 'scores': [ 1, 2, 3 ]}
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_reports_list_of_invalid_scalars(self):
+        def schema(validator):
+            validator.required('scores[]', type='number')
+        
+        document = { 'scores': [ 1, 'good', 4, 'excellent' ]}
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 2
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'scores[1]'
+        assert message.expected == 'number'
 
 
 def empty_schema(validator):

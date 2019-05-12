@@ -61,6 +61,9 @@ class Validator:
         if field is None:
             return self._document
         
+        if field.endswith('[]'):
+            field = field[:-2]
+        
         self._validated_fields.add(field)
 
         parent_path, child_name = self._split_field_name(field)
@@ -96,10 +99,17 @@ class Validator:
         
         validator_name = f'validate_{type}'
         type_validator = getattr(type_validators, validator_name)
-
-        message = type_validator(field, value, **kwargs)
-        if not message is None:
-            self.messages += [ message ]
+        
+        if isinstance(value, list):
+            for i, element in enumerate(value):
+                field_name = '%s[%i]' % (field.rstrip('[]'), i)
+                message = type_validator(field_name, element, **kwargs)
+                if not message is None:
+                    self.messages += [ message ]
+        else:
+            message = type_validator(field, value, **kwargs)
+            if not message is None:
+                self.messages += [ message ]
 
 
 class MissingParentError(Exception):
