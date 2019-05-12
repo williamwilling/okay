@@ -279,7 +279,18 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_value_with_list_type(self):
+        def schema(validator):
+            validator.required('rooms', type='list')
         
+        document = { 'rooms': [] }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+
 
 def empty_schema(validator):
     pass

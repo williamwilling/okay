@@ -543,7 +543,22 @@ validator.required('scores', type='list of number', min=1)
 validator.optional('scores[]', type='number', min=0, max=10)
 ```
 
-Once the list is defined as required, it makes little sense to make the elements optional. The same goes for the inverse: if the list if optional, making the elements required has no meaning. In other words, optional or required always refers to the list, not to its elements. So, what do we do if there's a conflict? I guess we can treat the list as required – as that is the safest option – and issue a warning.
+Once the list is defined as required, it makes little sense to make the elements optional. The same goes for the inverse: if the list is optional, making the elements required has no meaning. In other words, optional or required always refers to the list, not to its elements. So, what do we do if there's a conflict? I guess we can treat the list as required – as that is the safest option – and issue a warning.
+
+There is still an issue with the validation rule for lists. Let's take another look.
+
+```python
+validator.required('scores', type='list of number')
+```
+
+The validator can check that `scores` is a list, but what is it supposed to do with the elements? It can't really validate them, because it doesn't have the validation parameters. Perhaps, it can validate only the type of the elements, but if we then add a validation rule for the elements, the validator might report type errors in the elements twice. We might as well leave out the element type from the validation rule for lists altogether.
+
+```python
+validator.required('scores', type='list')
+validator.required('scores[]', type='number')
+```
+
+You only need the first validation rule if you want to specify validation parameters that apply to the list. Again, I suspect that's an uncommon case.
 
 I like the last syntax best, despite the possible required/optional conflict. It's unambiguous, it's technically correct. It makes the most sense, in my opinion.
 
