@@ -246,6 +246,17 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_accepts_a_value_with_string_type(self):
+        def schema(validator):
+            validator.required('unit', type='string', options=['sqm', 'sqft'])
+        
+        document = { 'unit': 'sqft' }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
 
 def empty_schema(validator):
     pass
