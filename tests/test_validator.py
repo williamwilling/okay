@@ -316,6 +316,102 @@ class TestValidator:
         assert message.type == 'invalid_type'
         assert message.field == 'scores[1]'
         assert message.expected == 'number'
+    
+    def test_it_accepts_valid_objects_in_a_list(self):
+        def schema(validator):
+            validator.required('accommodation.ratings[].aspect', type='string')
+        
+        document = {
+            'accommodation': {
+                'ratings': [{
+                    'aspect': 'cleanliness'
+                }]
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_rejects_invalid_objects_in_a_list(self):
+        def schema(validator):
+            validator.required('accommodation.ratings[].score', type='number', max=5)
+        
+        document = {
+            'accommodation': {
+                'ratings': [{
+                    'score': 3
+                }, {
+                    'score': 'excellent'
+                }, {
+                    'score': 6
+                }]
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 2
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation.ratings[1].score'
+        assert message.expected == 'number'
+        message = validator.messages[1]
+        assert message.type == 'number_too_large'
+        assert message.field == 'accommodation.ratings[2].score'
+        assert message.expected == 5
+    
+    def test_it_rejects_object_with_missing_fields_in_a_list(self):
+        def schema(validator):
+            validator.required('accommodation.ratings[].score', type='number')
+        
+        document = {
+            'accommodation': {
+                'ratings': [{}]
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation.ratings[0].score'
+    
+    def test_it_rejects_multiple_objects_with_missing_fields_in_a_list(self):
+        def schema(validator):
+            validator.required('accommodation.ratings[].score', type='number')
+        
+        document = {
+            'accommodation': {
+                'ratings': [{}, {}]
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 2
+    
+    def test_it_rejects_non_objects_in_a_list(self):
+        def schema(validator):
+            validator.required('ratings[].aspect', type='string')
+        
+        document = {
+            'ratings': [{ 'aspect': 'good' }, -1]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'ratings[1]'
+        assert message.expected == 'object'
 
 
 def empty_schema(validator):
