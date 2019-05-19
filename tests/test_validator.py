@@ -412,6 +412,96 @@ class TestValidator:
         assert message.type == 'invalid_type'
         assert message.field == 'ratings[1]'
         assert message.expected == 'object'
+    
+    def test_it_accepts_a_list_of_scalars_inside_a_list_of_objects(self):
+        def schema(validator):
+            validator.required('facilities[].subtype[]', type='string')
+        
+        document = {
+            'facilities': [{
+                'subtype': [ 'indoor' ]
+            }]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_accepts_a_list_of_objects_inside_a_list_objects(self):
+        def schema(validator):
+            validator.required('rooms[].facilities[].type')
+        
+        document = {
+            'rooms': [{
+                'facilities': [{
+                    'type': 'pool'
+                }]
+            }]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
+    
+    def test_it_reports_missing_nested_list(self):
+        def schema(validator):
+            validator.required('facilities[].subtype[]', type='string')
+        
+        document = {
+            'facilities': [{
+                'subtype': 'indoor'
+            }]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'facilities[0].subtype'
+        assert message.expected == 'list'
+    
+    def test_it_reports_invalid_value_in_nested_list(self):
+        def schema(validator):
+            validator.required('rooms[].facilities[].type', 'string')
+        
+        document = {
+            'rooms': [{
+                'facilities': [{
+                    'type': 'pool'
+                }, {
+                    'type': 0
+                }]
+            }]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'rooms[0].facilities[1].type'
+        assert message.expected == 'string'
+    
+    def test_it_accepts_a_list_nested_list_of_scalars(self):
+        def schema(validator):
+            validator.required('matrix[][]', 'number')
+        
+        document = {
+            'matrix': [
+                [ 1, 2, 3 ],
+                [ 4, 5, 6 ]
+            ]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert is_valid
+        assert validator.messages == []
 
 
 def empty_schema(validator):

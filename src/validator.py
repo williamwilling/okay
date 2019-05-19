@@ -1,5 +1,8 @@
 import type_validators
+from collections import namedtuple
 from message import Message
+
+Field = namedtuple('Field', 'name value')
 
 class Validator:
     def __init__(self, schema):
@@ -17,85 +20,94 @@ class Validator:
 
         return len(self.messages) == 0
     
-    def required(self, field, type=None, **kwargs):
-        values = self._get_values(field)
-        for value in values:
-            if isinstance(value, Message):
-                if value.type != 'missing_field' or value.field.count('.') == field.count('.'):
-                    self.messages.append(value)
+    def required(self, field_name, type=None, **kwargs):
+        for field in self._iterate_fields(field_name):
+            if isinstance(field, Message):
+                message = field
+                if message.type != 'missing_field' or message.field.count('.') == field_name.count('.'):
+                    self.messages.append(message)
             else:
-                self._validate(field, value, type, **kwargs)
+                self._validate(field, type, **kwargs)
     
-    def optional(self, field, type=None, **kwargs):
-        values = self._get_values(field)
-        for value in values:
-            if isinstance(value, Message):
-                if value.type != 'missing_field':
-                    self.messages.append(value)
+    def optional(self, field_name, type=None, **kwargs):
+        for field in self._iterate_fields(field_name):
+            if isinstance(field, Message):
+                message = field
+                if message.type != 'missing_field':
+                    self.messages.append(message)
             else:
-                self._validate(field, value, type, **kwargs)
+                self._validate(field, type, **kwargs)
 
     def ignore_extra_fields(self):
-        for field in self._document.keys():
-            self._validated_fields.add(field)
+        for field_name in self._document.keys():
+            self._validated_fields.add(field_name)
     
-    def _get_values(self, field):
-        if field is None:
-            return [ self._document ]
+    def _iterate_fields(self, field_name):
+        if field_name is None:
+            yield Field(None, self._document)
+            return
         
-        if field.endswith('[]'):
-            field = field[:-2]
-        
-        self._validated_fields.add(field)
-
-        parent_path, child_name = self._split_field_name(field)
-        parents = self._get_values(parent_path)
-
-        values = []
-        for parent in parents:
-            if isinstance(parent, Message):
-                values.append(parent)
-                continue
-            elif not isinstance(parent, (dict, list)):
-                values.append(Message(
+        if field_name.endswith('[]'):
+            field = next(self._iterate_fields(field_name[:-2]))
+            if not isinstance(field.value, list):
+                yield Message(
                     type='invalid_type',
-                    field=parent_path,
+                    field=field.name,
+                    expected='list'
+                )
+            else:
+                for i, element in enumerate(field.value):
+                    yield Field(f'{field.name}[{i}]', element)
+
+            return
+        
+        self._validated_fields.add(field_name)
+
+        parent_path, child_name = self._split_field_name(field_name)
+        for parent in self._iterate_fields(parent_path):
+            if isinstance(parent, Message):
+                yield parent
+                continue
+            elif not isinstance(parent.value, (dict, list)):
+                yield Message(
+                    type='invalid_type',
+                    field=parent.name,
                     expected='object'
-                ))
+                )
                 continue
             
-            if isinstance(parent, list):
-                results = []
-                for i, element in enumerate(parent):
+            if isinstance(parent.value, list):
+                for i, element in enumerate(parent.value):
                     if not isinstance(element, dict):
-                        values.append(Message(
+                        yield Message(
                             type='invalid_type',
-                            field=parent_path.replace('[]', f'[{i}]'),
+                            field=f'{parent.name}[{i}]',
                             expected='object'
-                        ))
+                        )
                         continue
 
                     if not child_name in element:
-                        values.append(Message(
+                        yield Message(
                             type='missing_field',
-                            field=field.replace('[]', f'[{i}]')
-                        ))
+                            field=field_name.replace('[]', f'[{i}]')
+                        )
                         continue
 
-                    results.append(element[child_name])
-
-                values.append(results)
+                    yield Field(field_name.replace('[]', f'[{i}]'), element[child_name])
             else:
-                if not child_name in parent:
-                    values.append(Message(
-                        type='missing_field',
-                        field=field
-                    ))
-                    continue
+                if parent.name is None:
+                    name = child_name
+                else:
+                    name = f'{parent.name}.{child_name}'
 
-                values.append(parent[child_name])
-        
-        return values
+                if not child_name in parent.value:
+                    yield Message(
+                        type='missing_field',
+                        field=name
+                    )
+                    continue
+                
+                yield Field(name, parent.value[child_name])
     
     def _split_field_name(self, field):
         if not '.' in field:
@@ -111,30 +123,13 @@ class Validator:
                     field=field
                 ))
     
-    def _validate(self, field, value, type, **kwargs):
+    def _validate(self, field, type, **kwargs):
         if type is None:
             return
         
         validator_name = f'validate_{type}'
         type_validator = getattr(type_validators, validator_name)
         
-        if isinstance(value, list):
-            for i, element in enumerate(value):
-                field_name = field.replace('[]', f'[{i}]')
-                message = type_validator(field_name, element, **kwargs)
-                if not message is None:
-                    self.messages.append(message)
-        else:
-            message = type_validator(field, value, **kwargs)
-            if not message is None:
-                self.messages.append(message)
-
-
-class MissingParentError(Exception):
-    pass
-
-class InvalidParentError(Exception):
-    pass
-
-class MissingFieldError(Exception):
-    pass
+        message = type_validator(field.name, field.value, **kwargs)
+        if not message is None:
+            self.messages.append(message)
