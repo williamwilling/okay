@@ -24,7 +24,7 @@ class Validator:
         for field in self._iterate_fields(field_name):
             if isinstance(field, Message):
                 message = field
-                if message.type != 'missing_field' or message.field.count('.') == field_name.count('.'):
+                if not _is_parent_missing(message, field_name):
                     self.messages.append(message)
             else:
                 self._validate(field, type, **kwargs)
@@ -48,22 +48,12 @@ class Validator:
             return
         
         if field_name.endswith('[]'):
-            field = next(self._iterate_fields(field_name[:-2]))
-            if not isinstance(field.value, list):
-                yield Message(
-                    type='invalid_type',
-                    field=field.name,
-                    expected='list'
-                )
-            else:
-                for i, element in enumerate(field.value):
-                    yield Field(f'{field.name}[{i}]', element)
-
+            yield from self._iterate_list(field_name)
             return
         
         self._validated_fields.add(field_name)
 
-        parent_path, child_name = self._split_field_name(field_name)
+        parent_path, child_name = _split_field_name(field_name)
         for parent in self._iterate_fields(parent_path):
             if isinstance(parent, Message):
                 yield parent
@@ -75,53 +65,28 @@ class Validator:
                     expected='object'
                 )
                 continue
+
+            name = f'{parent.name}.{child_name}' if parent.name is not None else child_name
+            if not child_name in parent.value:
+                yield Message(
+                    type='missing_field',
+                    field=name
+                )
+                continue
             
-            if isinstance(parent.value, list):
-                for i, element in enumerate(parent.value):
-                    if not isinstance(element, dict):
-                        yield Message(
-                            type='invalid_type',
-                            field=f'{parent.name}[{i}]',
-                            expected='object'
-                        )
-                        continue
-
-                    if not child_name in element:
-                        yield Message(
-                            type='missing_field',
-                            field=field_name.replace('[]', f'[{i}]')
-                        )
-                        continue
-
-                    yield Field(field_name.replace('[]', f'[{i}]'), element[child_name])
-            else:
-                if parent.name is None:
-                    name = child_name
-                else:
-                    name = f'{parent.name}.{child_name}'
-
-                if not child_name in parent.value:
-                    yield Message(
-                        type='missing_field',
-                        field=name
-                    )
-                    continue
-                
-                yield Field(name, parent.value[child_name])
+            yield Field(name, parent.value[child_name])
     
-    def _split_field_name(self, field):
-        if not '.' in field:
-            return (None, field)
-
-        return field.rsplit('.', 1)
-    
-    def _report_extra_fields(self):
-        for field in self._document.keys():
-            if field not in self._validated_fields:
-                self.messages.append(Message(
-                    type='extra_field',
-                    field=field
-                ))
+    def _iterate_list(self, field_name):
+        field = next(self._iterate_fields(field_name[:-2]))
+        if not isinstance(field.value, list):
+            yield Message(
+                type='invalid_type',
+                field=field.name,
+                expected='list'
+            )
+        else:
+            for i, element in enumerate(field.value):
+                yield Field(f'{field.name}[{i}]', element)
     
     def _validate(self, field, type, **kwargs):
         if type is None:
@@ -133,3 +98,21 @@ class Validator:
         message = type_validator(field.name, field.value, **kwargs)
         if not message is None:
             self.messages.append(message)
+
+    def _report_extra_fields(self):
+        for field in self._document.keys():
+            if field not in self._validated_fields:
+                self.messages.append(Message(
+                    type='extra_field',
+                    field=field
+                ))
+
+    
+def _split_field_name(field):
+    if not '.' in field:
+        return (None, field)
+
+    return field.rsplit('.', 1)
+
+def _is_parent_missing(message, field_name):
+    return message.type == 'missing_field' and message.field.count('.') < field_name.count('.')
