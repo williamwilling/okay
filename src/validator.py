@@ -16,7 +16,7 @@ class Validator:
         
         self._document = document
         self._schema(self)
-        self._report_extra_fields()
+        self._report_extra_fields(self._document)
 
         return len(self.messages) == 0
     
@@ -99,13 +99,21 @@ class Validator:
         if not message is None:
             self.messages.append(message)
 
-    def _report_extra_fields(self):
-        for field in self._document.keys():
-            if field not in self._validated_fields:
-                self.messages.append(Message(
-                    type='extra_field',
-                    field=field
-                ))
+    def _report_extra_fields(self, object, prefix='', indexed_prefix=''):
+        if isinstance(object, dict):
+            for key in object.keys():
+                field_name = f'{prefix}{key}'
+                if field_name not in self._validated_fields:
+                    self.messages.append(Message(
+                        type='extra_field',
+                        field=f'{indexed_prefix}{key}'
+                    ))
+                else:
+                    self._report_extra_fields(object[key], f'{prefix}{key}.', f'{indexed_prefix}{key}.')
+        elif isinstance(object, list):
+            for i, element in enumerate(object):
+                self._report_extra_fields(element, f'{prefix[:-1]}[].', f'{indexed_prefix[:-1]}[{i}].')
+
 
     
 def _split_field_name(field):

@@ -487,7 +487,7 @@ class TestValidator:
         assert message.field == 'rooms[0].facilities[1].type'
         assert message.expected == 'string'
     
-    def test_it_accepts_a_list_nested_list_of_scalars(self):
+    def test_it_accepts_a_nested_list_of_scalars(self):
         def schema(validator):
             validator.required('matrix[][]', 'number')
         
@@ -502,6 +502,46 @@ class TestValidator:
 
         assert is_valid
         assert validator.messages == []
+    
+    def test_it_reports_an_extra_nested_field(self):
+        def schema(validator):
+            validator.optional('accommodation')
+        
+        document = {
+            'accommodation': {
+                'name': 'Hotel'
+            }
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'extra_field'
+        assert message.field == 'accommodation.name'
+
+    def test_it_reports_an_extra_field_nested_in_a_list(self):
+        def schema(validator):
+            validator.optional('ratings[].aspect')
+        
+        document = {
+            'ratings': [{
+                'aspect': 'staff'
+            }, {
+                'aspect': 'cleanliness',
+                'score': 3
+            }]
+        }
+        validator = Validator(schema)
+        is_valid = validator.validate(document)
+
+        assert not is_valid
+        assert len(validator.messages) == 1
+        message = validator.messages[0]
+        assert message.type == 'extra_field'
+        assert message.field == 'ratings[1].score'
+            
 
 
 def empty_schema(validator):
