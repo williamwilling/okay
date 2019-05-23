@@ -293,6 +293,8 @@ line | message
 
 This works for line-based formats like JSON Lines and CSV, but not so much for binary formats like Avro. Probably the best thing you can do in that case, is to report the document number, assuming documents are at least stored in sequential order. This works out nicely for line-based formats as well. I have no clue what to do about column-based formats, so I'll just pretend they don't exist.
 
+For line-based formats, it's more intuitive to start counting documents starting at one instead of zero, since that is how text editors do it. Maybe it's more intuitive for other formats to start at zero. We can choose one option for all file formats are do whatever makes most sense for the format. Let's use one-based counting as the default and only use zero-based counting for a file format if there's a very good reason.
+
 document number | message
 ----------------|--------
   3             | missing field `id`
