@@ -12,6 +12,10 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
   * [Error location](#error-location)
   * [Showing errors](#showing-errors)
 * [Data sources](#data-sources)
+  * [Readers and stores](#readers-and-stores)
+  * [Detecting the data format](#detecting-the-data-format)
+  * [Non-stream-based stores](#non-stream-based-stores)
+  * [Error handling](#error-handling)
 * [Data sinks](#data-sinks)
 * [Parallel processing](#parallel-processing)
 * [Validation](#validation)
@@ -23,7 +27,7 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
 
 ## Background
 
-Scrapinghub sent us a sample of a thousand accommodations in JSON Lines format. We needed to check if the adhered to the schema we agreed upon with them, so I put together a simple validator and it served it's purpose. It was a fun little project and I now I want to expand on it. I have some nice ideas for improvements, but if I'm putting in the effort, I might as well make it useful in the long term. Since the original validator was a quick, one-off project, I didn't bother with things like unit tests or even version control. So, I'm starting from scratch, doing it right (or at least better) this time.
+Scrapinghub sent us a sample of a thousand accommodations in JSON Lines format. We needed to check if they adhered to the schema we agreed upon with them, so I put together a simple validator and it served it's purpose. It was a fun little project and now I want to expand on it. I have some nice ideas for improvements, but if I'm putting in the effort, I might as well make it useful in the long term. Since the original validator was a quick, one-off project, I didn't bother with things like unit tests or even version control. So, I'm starting from scratch, doing it right (or at least better) this time.
 
 ## Basic concept
 
@@ -88,7 +92,7 @@ def schema(validator):
     validator.required('accommodation.name').type('string')
     validator.optional('accommodation.geo').type('object')
     validator.required('accommodation.geo.longitude').type('string').regex(number_pattern)
-    validator.required('accommodation.geo.latitude').type('string').regex=(number_pattern)
+    validator.required('accommodation.geo.latitude').type('string').regex(number_pattern)
     validator.optional('accommodation.images').type('list of object')
     validator.optional('accommodation.images[].size').type('number').minimum(0)
     validator.optional('accommodation.images[].url').type('string').regex(url_pattern)
@@ -162,14 +166,14 @@ validator.optional('accommodation.geo', type='object')
 In both styles, we can make nested fields a bit easier to deal with.
 
 ```python
-validator.required('accommodation').type('object')
-validator.required('.name').type('string')
-validator.optional('accommodation.geo').type('object')
-validator.required('.longitude').type('string').regex(number_pattern)
-validator.required('.latitude').type('string').regex=(number_pattern)
-validator.optional('accommodation.images').type('list of object')
-validator.optional('.size').type('number').minimum(0)
-validator.optional('.url').type('string').regex(url_pattern)
+validator.required('accommodation', type='object')
+validator.required('.name', type='string')
+validator.optional('accommodation.geo', type='object')
+validator.required('.longitude', type='string', regex=number_pattern)
+validator.required('.latitude', type='string', regex=number_pattern)
+validator.optional('accommodation.images', type='list of object')
+validator.optional('.size', type='number', minimum=0)
+validator.optional('.url', type='string', regex=url_pattern)
 ```
 
 ```python
@@ -367,6 +371,38 @@ Potentially, the amount of documents you want to validate is huge, so reading th
 
 In order to deal with multiple formats, we need to convert any input format to an intermediate format that the validator can use. The obvious intermediate format here is a Python dictionary.
 
+### Readers and stores
+
+As mentioned above, there's a distinction between where the data is stored and in what format the data is stored, so we need separate components for both. I'll call a component that deals with the format a reader, and a component that deals with where data is stored a store. There's a relationship between readers and stores that warrants a bit of exploration.
+
+The responsibility of a reader is to convert JSON, Avro, CSV, or whatever into a Python dictionary. There's a reader for each file format. The reader doesn't really need to know where the data comes from, so it calls a store to take care of that. This way, you only need one JSON reader (for example), but you can still read JSON files from the file system, or S3, or from an HTTP API. The opposite is also true: if you have an S3 store, it works for JSON, Avro, CSV, etc.
+
+The first complication comes with the distinction between binary data and text data. Typically, a store doesn't know which of the two it's dealing with. Presumably, the reader does know what to expect, so it's best if a store always provides bytes and the reader is responsible for converting it to text if necessary. This leaves the question of how to determine the encoding the text is using. Is it even possible to detect text encoding reliably? If it is, every reader dealing with text needs to do it, so it should be a shared utility. For now, let's keep it simple and assume UTF-8. Some file formats, like Avro, are available in both a text and a binary format. It's up to the reader to determine which one it received from the store and act accordingly. I'm going to assume that's easy enough to do.
+
+Another question is what to do with zipped data. It would be nice if we can handle zipped data transparently. It's easy enough to pipe bytes through an unzip stream. Question is, which component is responsible for detecting the data is zipped: the reader, the store, or a separate component. You could have the unzip stream detect if the data is zipped, if so unzip it, if not just pass it on; you would simply always wrap a store's output in the unzip stream. Another option is to do the detection in the store and only wrap the output in an unzip stream if necessary. Doing the detection in the reader is equally viable, but it feels more like a store issue than a reader issue to me. Letting the unzip stream handle it, seems to be the nicest separation of concerns.
+
+Then there's the question of validating multiple files. It would be nice, for example, if you could validate all files in a folder. Will the store put all the files into the same byte stream? It probably needs to pass the file name to the reader for error reporting, so how do you do that? I guess a store should be able to return multiple byte streams and associate a name with each of them.
+
+### Detecting the data format
+
+It would be nice to be able to detect the data format. Doing it by file extension is cumbersome, because then you need to pass a file name around and not all stores are file based. It's also not very reliable. It's much better to detect the data format from the contents of the file. I suspect that in most cases, you can make a pretty informed guess from the first few bytes, the first line at most. This means that stores should implement a peek method, that returns the requested number of bytes without moving the stream forward, i.e. if you read after a peek (or peek again) you get the same bytes that the peek returned. This is necessary, because the reader needs to consume the same first bytes that the format detector used.
+
+There might be cases where the exact data format is hard to detect from just the contents. For example, text-based Avro is based on JSON, so it's hard to distinguish between text-based Avro and pure JSON. In such a case, the file extension can be a valuable hint, so it's useful to pass the file name and extension, if available, to the format detector.
+
+### Non-stream-based stores
+
+DynamoDB presents an interesting case: is it a store or a reader? In a way it's both: it's where data is stored, but it also uses its own format. I know it's based on JSON, but you can't just convert it straight away, because of all the type information DynamoDB puts in there. You could implement a DynamoDB store and a DynamoDB reader that always work together. Is that overkill? You can also implement everything in the reader. (You can't put everything in the store, because the code that will feed documents to the validator will rely on the interface of the reader, not the interface of the store.) 
+
+Are there other cases like DynamoDB? What if you want to validate data that's stored in a MySQL database? (Relational databases have their own schema of course, but the validator potentially validates much more.) It doesn't make too much sense to output a byte stream from MySQL, because database cursors usually work record based. You can turn the records into byte streams and then have the reader turn them into records again, but that seems unnecessary. The same goes for DynamoDB. It might be best to implement all of it in the reader. Or allow different interfaces for different data stores, but that makes them less interchangeable. On the other hand, they're not interchangeable in any case, because passing a DynamoDB store to a CSV reader doesn't make much sense anyway. Alright, let's just say that stores always have an interface that provides a byte stream and that cases where store and format are tightly coupled, they are implemented as a reader only.
+
+### Error handling
+
+What to do when reading from the data source fails? I guess if there's a problem with the store, you can't do much but raise an exception: if the bytes aren't there, the bytes aren't there. But what about problems in the reader? What if one document in a JSON Lines file is not well-formatted, or a record in a CSV file doesn't have enough fields? It would be nice to report these issues as a validation error instead of aborting the process, because you might already be many documents in and you don't what to rerun validation on a multi-gigabyte file just because someone forgot to escape a comma.
+
+It might make it hard to report the [error location](#error-location), though. What if someone puts an actual new line instead of a `\n` into a line-based format like JSON Lines or CSV? The basic assumption is that document number equals line number. Well, that would still hold, so no problem there. It does make it very clear that the reader should be responsible for the document number. In non-line-based formats, like binary Avro, things get more complicated. I guess the way to deal with it is file format specific. Let's make this the responsibility of the reader and hope for the best.
+
+Another potential aspect of the error location, is the file name. The reader may be responsible for the error location, but the file name is something it needs to get from the store and then pass on.
+
 ## Data sinks
 
 It occurs to me that for large datasets, you may want more than just a report of validation errors. If you're processing 10 GB of data, you don't want to read it in once to do validation and then for a second time to filter out the invalid documents. It would be much more convenient if you can direct documents somewhere. Write valid documents to this S3 bucket, write invalid documents to this SQS queue, write logs to Cloudwatch; something like that. If we're already streaming in documents, we might as well also stream them out.
@@ -443,7 +479,7 @@ validator.required('accommodation.geo')
 {}
 ```
 
-Clearly, validation will fail, but what should the output be. The first rule results in a message, because `accommodation` is missing, but what about the second rule? `accommodation.geo` is also missing, but what is the value in reporting that? To keep the output from cluttering up with loads of unnecessary messages, the validator shouldn't report on `accommodation.geo`: if the parent is required and missing, we can stop validating the children.
+Clearly, validation will fail, but what should the output be? The first rule results in a message, because `accommodation` is missing, but what about the second rule? `accommodation.geo` is also missing, but what is the value in reporting that? To keep the output from cluttering up with loads of unnecessary messages, the validator shouldn't report on `accommodation.geo`: if the parent is required and missing, we can stop validating the children.
 
 ## Data types
 
