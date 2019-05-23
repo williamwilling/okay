@@ -1,10 +1,11 @@
+import io
 import pytest
 import sys
 from readers import JSONLinesReader
 
 class TestJSONLinesReader:
     def test_it_produces_no_documents_from_empty_input(self):
-        source = MemorySource('')
+        source = io.BytesIO(b'')
         reader = JSONLinesReader(source)
 
         documents = list(reader.documents())
@@ -12,18 +13,16 @@ class TestJSONLinesReader:
         assert documents == []
     
     def test_it_reads_an_empty_document(self):
-        source = MemorySource('{}')
+        source = io.BytesIO(b'')
         reader = JSONLinesReader(source)
 
         documents = reader.documents()
-        document = next(documents)
 
-        assert document == {}
         with pytest.raises(StopIteration):
             next(documents)
     
     def test_it_parses_a_json_document(self):
-        source = MemorySource('{ "key": "value" }')
+        source = io.BytesIO(b'{ "key": "value" }')
         reader = JSONLinesReader(source)
 
         documents = reader.documents()
@@ -32,7 +31,7 @@ class TestJSONLinesReader:
         assert document == { 'key': 'value' }
     
     def test_it_produces_multiple_documents(self):
-        source = MemorySource('''
+        source = io.BytesIO(b'''
             { "aspect": "cleanliness" }
             { "aspect": "staff" }
             { "aspect": "location" }
@@ -49,7 +48,7 @@ class TestJSONLinesReader:
         assert document['aspect'] == 'location'
     
     def test_it_stitches_a_document_back_together(self):
-        source = MemorySource('{ "aspect": "cleanliness" }', buffer_size=10)
+        source = ChunkedBytesIO(b'{ "aspect": "cleanliness" }', buffer_size=10)
         reader = JSONLinesReader(source)
 
         documents = reader.documents()
@@ -58,7 +57,7 @@ class TestJSONLinesReader:
         assert document['aspect'] == 'cleanliness'
     
     def test_it_stitches_multiple_documents_back_together(self):
-        source = MemorySource('''
+        source = ChunkedBytesIO(b'''
             { "aspect": "cleanliness" }
             { "aspect": "location" }
         ''', buffer_size=10)
@@ -72,7 +71,7 @@ class TestJSONLinesReader:
         assert document['aspect'] == 'location'
     
     def test_it_reports_an_unparsable_line(self):
-        source = MemorySource('not json')
+        source = io.BytesIO(b'not json')
         reader = JSONLinesReader(source)
 
         documents = reader.documents()
@@ -85,7 +84,7 @@ class TestJSONLinesReader:
         assert message.document_number == 1
     
     def test_it_continues_after_an_unparsable_line(self):
-        source = MemorySource('''
+        source = io.BytesIO(b'''
             { "aspect": "cleanliness" }
             { 'not': 'json' }
             { "aspect": "location" }
@@ -104,7 +103,7 @@ class TestJSONLinesReader:
         
 
 
-class MemorySource:
+class ChunkedBytesIO:
     def __init__(self, data, buffer_size=sys.maxsize):
         self._data = data
         self._buffer_size = buffer_size

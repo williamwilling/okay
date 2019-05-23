@@ -14,8 +14,8 @@ class JSONLinesReader:
             end_of_line = buffer.find('\n')
             while end_of_line == -1:
                 chunk = self._source.read()
-                buffer += chunk
-                if chunk == '':
+                buffer += chunk.decode('utf8')
+                if chunk == b'':
                     break
                 end_of_line = buffer.find('\n')
             
@@ -36,5 +36,5 @@ class JSONLinesReader:
                     ))
                 document_number += 1
         
-            if chunk == '':
+            if chunk == b'':
                 break
