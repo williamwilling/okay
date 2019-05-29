@@ -207,7 +207,7 @@ def schema(validator):
     validator.required('accommodation', type='object')
     validator.required('accommodation.type', type='string', options=['hotel', 'alternative'])
     validator.required('accommodation.name', type='string')
-    
+
     if validator.document.type == 'alternative':
         validator.required('unit_count', type='int', minimum=0)
     else:
@@ -234,7 +234,7 @@ def schema(validator):
             **schema,
             'accommodation.unit_count': { disallowed=True }
         }
-    
+
     validator.apply(schema)
 ```
 
@@ -244,7 +244,7 @@ Function call style looks cleaner to me in this scenario. Actually, these exampl
 def schema(validator):
     validator.required('accommodation', type='object')
     validator.required('accommodation.name', type='string')
-    
+
     if validator.required('accommodation.type', type='string', options=['hotel', 'alternative']):
         if validator.document.type == 'alternative':
             validator.required('unit_count', type='int', minimum=0)
@@ -366,6 +366,7 @@ You could keep the entire document in memory so that you can show it and highlig
 ## Data sources
 
 The validator shouldn't care where the data comes from. This means two things:
+
 * It shouldn't matter where the data is stored (file system, S3, DynamoDB, etc.).
 * It shouldn't matter in what format the data is stored (JSON, Avro, CSV, etc.).
 
@@ -393,7 +394,7 @@ There might be cases where the exact data format is hard to detect from just the
 
 ### Non-stream-based stores
 
-DynamoDB presents an interesting case: is it a store or a reader? In a way it's both: it's where data is stored, but it also uses its own format. I know it's based on JSON, but you can't just convert it straight away, because of all the type information DynamoDB puts in there. You could implement a DynamoDB store and a DynamoDB reader that always work together. Is that overkill? You can also implement everything in the reader. (You can't put everything in the store, because the code that will feed documents to the validator will rely on the interface of the reader, not the interface of the store.) 
+DynamoDB presents an interesting case: is it a store or a reader? In a way it's both: it's where data is stored, but it also uses its own format. I know it's based on JSON, but you can't just convert it straight away, because of all the type information DynamoDB puts in there. You could implement a DynamoDB store and a DynamoDB reader that always work together. Is that overkill? You can also implement everything in the reader. (You can't put everything in the store, because the code that will feed documents to the validator will rely on the interface of the reader, not the interface of the store.)
 
 Are there other cases like DynamoDB? What if you want to validate data that's stored in a MySQL database? (Relational databases have their own schema of course, but the validator potentially validates much more.) It doesn't make too much sense to output a byte stream from MySQL, because database cursors usually work record based. You can turn the records into byte streams and then have the reader turn them into records again, but that seems unnecessary. The same goes for DynamoDB. It might be best to implement all of it in the reader. Or allow different interfaces for different data stores, but that makes them less interchangeable. On the other hand, they're not interchangeable in any case, because passing a DynamoDB store to a CSV reader doesn't make much sense anyway. Alright, let's just say that stores always have an interface that provides a byte stream and that cases where store and format are tightly coupled, they are implemented as a reader only.
 
@@ -409,11 +410,18 @@ Another potential aspect of the error location, is the file name. The reader may
 
 It occurs to me that for large datasets, you may want more than just a report of validation errors. If you're processing 10 GB of data, you don't want to read it in once to do validation and then for a second time to filter out the invalid documents. It would be much more convenient if you can direct documents somewhere. Write valid documents to this S3 bucket, write invalid documents to this SQS queue, write logs to Cloudwatch; something like that. If we're already streaming in documents, we might as well also stream them out.
 
+We can't just sink documents using the exact same bytes that were provided by the data source. First of all, because the validator doesn't receive the bytes, just the document, and second because this doesn't work for all file formats. For example, it would work for JSON Lines, but not for regular JSON, because that would need to be a list with brackets and commas, and CSV and Avro require headers. On top of that, you might want to output the document in a different format than it came in, so it would make sense to make a split between sinks (where you write it) and writers (in which format you write it), just as with sources and readers.
+
+The [document numbers](#error-location) in the error report won't match with what's written to the sink. We could add extra information to the error report with an extra document number. That would work for file-based systems, but what about something like SQS or Kinesis? Maybe every sink should figure this out for itself and for some sinks it just doesn't make sense. That's not very satisfying. If you write invalid documents to SQS, you want to be able to figure out what's wrong with them. Should we add a unique identifier to each document? But then we are changing the data. Although, SQS does have the option to add metadata to a message. I guess making it sink-specific is the best way to go. It may also be possible to indicate a field in the document as a unique identifier, especially since the validator (hopefully) already made sure the field exists. That may not work in all situations, though, but when it does, it can be very handy. So handy, in fact, that we may want to add it to the output of the validator proper, not just to the sink.
+
+When data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I guess, sometimes that's what you want and sometimes it isn't, so it should be configurable. Either you specify that you want to sink all documents to one location or you provide a map from input location to output location. Is the latter always possible? Say that the input comes from the file system and is determined by a glob pattern: you don't know the exact file names beforehand. Now you want to write the output to SQS with a different queue for each file. You would need to provide a mapping function to do the conversion from file name to queue name. It's possible. A bug in the mapping function would lead to a lot of failed writes.
+
 All of this should be separate from the validator proper, of course. There should be a coordinator that you can initialize with some data sources and some data sinks.
 
 ## Parallel processing
 
 Given that we may want to run the validator on an a huge set of documents, it would be nice if we could run the validator on subsets in parallel. This adds some requirements.
+
 * The data source reader needs to be able to read subsets.
 * We need some way to determine what the subsets should be.
 * We need to be able to combine the validation results of the subsets.
@@ -499,6 +507,7 @@ Then there's the question of which data types to support. Do we want a generic d
 ### Lists
 
 Lists are a special case. They don't need a separate implementation; they can reuse their underlying data type. What I mean is: if you have a data type for strings, you don't need a separate data type for a list of strings; you just apply the validation for string to each element of the list. We do need a separate name, though. To me, the two obvious candidates are:
+
 * `[string]`
 * `list of string`
 
@@ -507,6 +516,7 @@ I prefer the latter. It's easier to miss the square brackets than to miss the pr
 Note that I'm assuming that lists or homogenous, i.e. all elements in the list are of the same type. My assumption is that this is by far the more common case, so for now, I'm not even going to consider elements of differing data types. If we want to support heterogeneous lists in the future, they'll need a different name, e.g. `collection`.
 
 Even if we limit ourselves to homogeneous lists, there are three variations and they require different ways of specifying validation parameters.
+
 * lists of objects
 * lists of scalars
 * lists of lists
