@@ -17,6 +17,7 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
   * [Non-stream-based stores](#non-stream-based-stores)
   * [Error handling](#error-handling)
 * [Data sinks](#data-sinks)
+  * [Multiple sources, multiple sinks](#multiple-sources-multiple-sinks)
 * [Parallel processing](#parallel-processing)
 * [Validation](#validation)
   * [Extra fields](#extra-fields)
@@ -416,9 +417,90 @@ I'm wondering what to do about collecting documents. Suppose we want to output J
 
 The [document numbers](#error-location) in the error report won't match with what's written to the sink. We could add extra information to the error report with an extra document number. That would work for file-based systems, but what about something like SQS or Kinesis? Maybe every sink should figure this out for itself and for some sinks it just doesn't make sense. That's not very satisfying. If you write invalid documents to SQS, you want to be able to figure out what's wrong with them. Should we add a unique identifier to each document? But then we are changing the data. Although, SQS does have the option to add metadata to a message. I guess making it sink-specific is the best way to go. It may also be possible to indicate a field in the document as a unique identifier, especially since the validator (hopefully) already made sure the field exists. That may not work in all situations, though, but when it does, it can be very handy. So handy, in fact, that we may want to add it to the output of the validator proper, not just to the sink.
 
-When data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I guess sometimes that's what you want and sometimes it isn't, so it should be configurable. Either you specify that you want to sink all documents to one location or you provide a map from input location to output location. Is the latter always possible? Say that the input comes from the file system and is determined by a glob pattern: you don't know the exact file names beforehand. Now you want to write the output to SQS with a different queue for each file. You would need to provide a mapping function to do the conversion from file name to queue name. It's possible. A bug in the mapping function would lead to a lot of failed writes.
+### Multiple sources, multiple sinks
 
-All of this should be separate from the validator proper, of course. There should be a coordinator that you can initialize with some data sources and some data sinks.
+When data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I guess sometimes that's what you want and sometimes it isn't, so it should be configurable, but how?
+
+Let's first consider the possible scenarios. The simplest one is where you want to write all output to a single place, no matter where it came from. For example, all invalid documents should end up in a single file in S3. The next scenario is when there is a one-to-one mapping between the original store and the output location. For example, the input comes from several files in S3 and for each file there's an SQS queue that collects the invalid documents. The final scenario is where there isn't an obvious mapping, but you still want multiple output store, for example when you want to limit each output file to 500 documents.
+
+Regardless of the scenario, you can solve the mapping in two place: inside the sink, or in the code that ties all the components (source, validator, sink) together. I'll call the second one a controller. I would prefer to solve the mapping in the sink, because it feels like it belongs there and it I think it would aid reusability, but I'm a bit worried that code for complex mapping scenarios becomes unwieldy. Let's try.
+
+First, here's an example of a controller.
+
+```python
+source = FileSystemSource('documents/2019-05/')
+reader = JSONLinesReader(source)
+
+writer = JSONLinesWriter()
+invalid_documents_sink = FileSystemSink(writer, 'invalid.json')
+
+validator = Validator(schema)
+for document in reader.documents():
+    if not validator.validate(document):
+        invalid_documents_sink.add(document)
+```
+
+This controller reads from multiple stores (all the files in the folder `documents/2019-05/`) and writes to a single store (the file `invalid.json`), so this is the first scenario. There's no mapping here.
+
+Let's take the second scenario and make the sink responsible for the mapping. We need to pass the sink some kind of mapping function instead of an explicit name. Other than that, it's the same as the previous controller.
+
+```python
+def store_mapper(input_name):
+    return os.path.basename(input_name)
+
+source = FileSystemSource('documents/2019-05/')
+reader = JSONLinesReader(source)
+
+writer = JSONLinesWriter()
+invalid_documents_sink = FileSystemSink(writer, store_mapper)
+
+validator = Validator(schema)
+for document in reader.documents():
+    if not validator.validate(document):
+        invalid_documents_sink.add(document)
+```
+
+This example takes the input file name, strips it of directory information and uses that as the output file name. Making the controller responsible for the mapping moves the mapping code a bit, but isn't too different.
+
+```python
+source = FileSystemSource('documents/2019-05/')
+reader = JSONLinesReader(source)
+
+writer = JSONLinesWriter()
+invalid_documents_sink = FileSystemSink(writer, store_mapper)
+
+validator = Validator(schema)
+for document in reader.documents():
+    if not validator.validate(document):
+        output_name = document.store_name.rsplit('/', 1)[1]
+        invalid_documents_sink.add(document, output_name)
+```
+
+So, what about mappings that aren't one-on-one? Can we solve that with a mapping function, too?
+
+```python
+document_count = 0
+store_count = 0
+def store_mapper(input_name):
+    document_count += 1
+    if document_count >= 500:
+        store_count += 1
+        document_count = 0
+    return f'invalid_{store_count}.json'
+
+source = FileSystemSource('documents/2019-05/')
+reader = JSONLinesReader(source)
+
+writer = JSONLinesWriter()
+invalid_documents_sink = FileSystemSink(writer, store_mapper)
+
+validator = Validator(schema)
+for document in reader.documents():
+    if not validator.validate(document):
+        invalid_documents_sink.add(document)
+```
+
+Well, that's not too bad, actually. In fact, I like it, because this way, we can write a couple of common mappers that you can reuse. If it turns out there are scenarios where a mapper function isn't flexible enough, we can still add a store name parameter to `sink.add()` to give the option to solve it in the controller, but right now, it seems that won't be necessary.
 
 ## Parallel processing
 
