@@ -27,6 +27,11 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Sinking a collection of documents](#sinking-a-collection-of-documents)
 * [Multiple sources, multiple sinks](#multiple-sources-multiple-sinks)
 * [Non-validation errors](#non-validation-errors)
+* [Splitting the library](#splitting-the-library)
+* [Redesign](#redesign)
+  * [Syntax improvements](#syntax-improvements)
+  * [Validation messages](#validation-messages)
+  * [Validator interface](#validator-interface)
 
 ## Background
 
@@ -545,3 +550,179 @@ Suppose there's a bug in the validator. When dealing with lists, it tries to rea
 So, should we just write all errors – validation and otherwise – to the log and be done with it? I like the simplicity of using a single model. I also like the idea of using the default system, but I don't think it fits perfectly. Python's logging works well for string messages, but it requires a bit of wrangling if we want to log more complex records. It can handle it, but it's an advanced use case and I'm a bit worried it might confuse users of the validator. It's not a dealbreaker, though. If we take some care, users may not notice a thing. If we use Python's logging system, it does mean that our messages will be mixed with the messages produced by other code, like the libraries we use or the code the user wrote. This shouldn't be too much of a problem, since Python has the concept of loggers. We can just create a logger specifically for our own messages. If we want to sink our error report, we now need to extract it from the logging system. Python does allow you to write your logs to a file and you can write custom handlers to send it to other places, too. Again, it requires some wrangling, but the functionality is there.
 
 It seems like Python's logging system gives us all we need, but I'm still not convinced we should use it for everything. What it comes down to, is that we have two types of errors: system errors and validation errors. System errors should use the default logging system, but I think validation errors should be regular output of the validator; that's its entire purpose. I'll go with this rule of thumb: if an error is related to processing a document, it goes in the validation report, if it isn't, it goes to the log.
+
+## Splitting the library
+
+Thinking about the combined problem of I/O and error reporting is blocking my progress, so it's time to simplify. What is I/O doing in a validator library anyway? I think I should split things up: one library for validation, one library for I/O; much cleaner. Ah, just thinking about it is a relieve!
+
+So, does that solve the error reporting issue? Not really, but let's only consider error reporting in the context of the validator proper. The validator returns validation messages. Done!
+
+But what if there's a document-related problem during I/O, for example, one line in a JSON Lines file is invalid? That would result in an exception, one that a controller should catch and add to the list of validation messages.
+
+Which brings up the issue of the controller. Where do we put that? It depends on both the validator and the I/O library. Should it be yet another library? That feels a bit superfluous, since the controller on its own can't do anything. Is it part of the validator library? Functionality-wise, that's where it fits best, but it would mean that the entire validation library now has a dependency on the I/O library. What if we just leave it out and make the user responsible for writing the controller? Downside of that the code is both repetitive and error-prone, so providing a default controller would be really beneficial.
+
+What if we make the three parts (validator, I/O, controller) separate packages within the same library? The I/O library is valuable on its own and it would be strange if your project gains a validator you don't need just because you import an I/O library.
+
+These are all the options I see and none of them is ideal. I'm torn between three separate libraries and combining the validator and the controller. How often would someone want to use the validator without any kind of I/O? Documents would already have to be in memory and Python dictionaries, so I suppose not that often. How often would someone want to use the validator with a different I/O library? That's a bit more likely. I mean, the validator is designed to be completely independent from I/O, so why undo that by giving the validator package a dependency on a specific I/O library? Okay, three libraries it is.
+
+## Redesign
+
+Now that I've decided to remove the sources and the sinks, and the readers and the writers from the library, it's a good time to reevaluate the design of the validator library.
+
+### Syntax improvements
+
+I'm still happy with the syntax. The only improvement I'd like to make, is to get rid off the need to repeat `validator.` all the time. I've known since the start how to do that; I just haven't written in down yet. We can solve the problem by wrapping the schema in a class that forwards calls to `required` and `optional` to the validator. It will turn a schema like this:
+
+```python
+def schema(validator):
+    validator.required('metadata', type='object')
+    validator.required('metadata.accommodation_id', type='int', minimum=1)
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.name', type='string')
+
+```
+
+into a schema like this:
+
+```python
+class AccommodationSchema(validator.Schema):
+    def definition():
+        required('metadata', type='object')
+        required('metadata.accommodation_id', type='int', minimum=1)
+        required('accommodation', type='object')
+        required('accommodation.name', type='string')
+```
+
+The first option will still be valid; the `Schema`-class is just there for convenience.
+
+### Validation messages
+
+Despite all the thought I put into making sure documents don't need to stay in memory, I always assumed that you would be able to keep all validation messages in memory, but if you are validating a lot of documents, that's not guaranteed at all. So, we need a mechanism to sink each validation message as soon as the validator produces it. I guess that means we need to inject a message sink into the validator. Unless...
+
+The validator operates on one document at a time. The only state it keeps, is a collection of validation messages. What if we push that to the controller? The controller needs access to the validation messages anyway, because it needs to add validation messages for some I/O errors. That would mean that the validator can simply return a list of validation messages. I like that.
+
+It would be useful if the validator can accept some values that it adds to every validation message. Say that you want to add the name of the file that the document came from to each validation message. The validator knows nothing about files, so you need to pass it in.
+
+### Validator interface
+
+With all this in mind, let's rethink the interface of the validator. Since the validator doesn't need to keep state anymore, there's no need for it to be a class. I guess I'd better give an example of what the validator used to look like, so in the future it's still clear what has changed.
+
+Let's assume we have a document, say, something like this.
+
+```python
+document = {
+    'accommodation': {
+        'name': 'Hotel New Hampshire'
+    }
+}
+```
+
+Right now (or by the time you're reading this: in the past) this is how you run a validator:
+
+```python
+from validator import Validator
+
+def schema(validator):
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.name', type='string')
+
+validator = Validator(schema)
+if not validator.validate(document):
+    for message in validator.messages:
+        print(message.type, message.field)
+```
+
+After I get rid off the `Validator` class, it would be like this:
+
+```python
+from validator import validate
+
+def schema(validator):
+    validator.required('accommodation', type='object')
+    validator.required('accommodation.name', type='string')
+
+validation_messages = validate(schema, document):
+for message in validation_messages:
+    print(message.type, message.field)
+```
+
+A minor change, but it is a bit cleaner. It also sidesteps the issue that the `Validator` class isn't just the validator, but also the thing that kickstarts the validator, so I don't have to worry about that anymore.
+
+Most people will probably use the `Schema` helper class, in which case, the code looks like this:
+
+```python
+from validator import Schema
+
+class AccommodationSchema(Schema):
+    def definition():
+        required('accommodation', type='object')
+        required('accommodation.name', type='string')
+
+validation_messages = validate(AccommodationSchema, document):
+for message in validation_messages:
+    print(message.type, message.field)
+```
+
+That is neat, because `validate()` doesn't even need to know if the schema is a function or a class, but the downside is that the schema class is instantiated for every document. I'm not sure if that has a significant performance impact – I should measure – but let's engage in some premature optimization. What I'm looking for, is something like this:
+
+```python
+from validator import Schema
+
+class AccommodationSchema(Schema):
+    def check():
+        required('accommodation', type='object')
+        required('accommodation.name', type='string')
+
+schema = AccommodationSchema()
+validation_messages = schema.validate(document)
+for message in validation_messages:
+    print(message.type, message.field)
+```
+
+Can we implement this? I think so. In order to follow along, you first need to know how I intend to implement `Schema` without this functionality. It will look something like this:
+
+```python
+class Schema:
+    def __init__(self, validator):
+        self._validator = validator
+        self.check()    # implemented in derived class
+
+    def required(self, field_name, **kwargs):
+        self._validator.required(field_name, **kwargs)
+
+    def optional(self, field_name, **kwargs):
+        self._validator.optional(field_name, **kwargs)
+```
+
+The validator the constructor receives is the same validator that would be passed if the schema was a function. The nice thing about this, is that `validate()` doesn't need to know whether it's calling a function or a constructor.
+
+Now we want to replace the `validate()` function with a method on the `Schema` class. This is what the regular `validate()` function looks like:
+
+```python
+def validate(schema, document):
+    _validator.document = document  # _validator is global to avoid repeated instantiation
+    schema(validator)
+```
+
+The implementation of `Schema.validate()` wouldn't be all that different.
+
+```python
+class Schema:
+    def validate(self, document):
+        self._validator.document(document)
+        self.check()
+```
+
+There are two related questions. First, where does `self._validator` come from? Second, how do you instatiante a schema? Right now, the constructor for `Schema` expects a validator, but we don't want to pass that in; we want `Schema` to take care of that for us. The solution is to make the constructor understand that it can be called in two different ways: by `validate()` as a normal schema, or by the user as a standalone schema.
+
+```python
+class Schema:
+    def __init__(self, validator):
+        if validator:
+            self._validator = validator
+            check()
+        else:
+            self._validator = _validator
+```
+
+It's a bit iffy to have one class that can behave in two different ways, but it is oh so convenient. And isn't that what a convenience class is all about?
