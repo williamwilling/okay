@@ -4,21 +4,26 @@ from message import Message
 
 Field = namedtuple('Field', 'name value')
 
+def validate(schema, document):
+    if not isinstance(document, dict):
+        raise TypeError('Document must be dictionary.')
+
+    _validator._reset(document)
+    schema(_validator)
+    _validator._report_extra_fields(document)    
+
+    return _validator.messages
+
+
 class Validator:
-    def __init__(self, schema):
-        self._schema = schema
+    def __init__(self):
         self._validated_fields = set()
         self.messages = []
     
-    def validate(self, document):
-        if not isinstance(document, dict):
-            raise TypeError('Document must be dictionary.')
-        
+    def _reset(self, document):
         self._document = document
-        self._schema(self)
-        self._report_extra_fields(self._document)
-
-        return len(self.messages) == 0
+        self._validated_fields.clear()
+        self.messages.clear()
     
     def required(self, field_name, type=None, **kwargs):
         for field in self._iterate_fields(field_name):
@@ -115,7 +120,6 @@ class Validator:
                 self._report_extra_fields(element, f'{prefix[:-1]}[].', f'{indexed_prefix[:-1]}[{i}].')
 
 
-    
 def _split_field_name(field):
     if not '.' in field:
         return (None, field)
@@ -124,3 +128,6 @@ def _split_field_name(field):
 
 def _is_parent_missing(message, field_name):
     return message.type == 'missing_field' and message.field.count('.') < field_name.count('.')
+
+
+_validator = Validator()
