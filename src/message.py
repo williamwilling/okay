@@ -1,8 +1,8 @@
 class Message:
-    def __init__(self, type, field=None, document_number=None, expected=None, extra=None):
+    def __init__(self, type, **kwargs):
         self.type = type
-        self.field = field
-        self.expected = expected
-        self.document_number = document_number
-        self.extra = extra
+        self.add(**kwargs)
         
+    def add(self, **kwargs):
+        for key, value in kwargs.items():
+            self.__dict__[key] = value

@@ -467,7 +467,68 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'extra_field'
         assert message.field == 'ratings[1].score'
-            
+    
+    def test_it_adds_specified_values_to_missing_field_message(self):
+        def schema(validator):
+            validator.required('metadata')
+        
+        document = {}
+        message_values = {
+            'source': 's3',
+            'key': 'accommodations.json'
+        }
+        messages = validate(schema, document, message_values)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
+    
+    def test_it_adds_specified_values_to_invalid_type_message(self):
+        def schema(validator):
+            validator.required('metadata', type='object')
+            validator.optional('accommodation', type='object')
+        
+        document = {
+            'metadata': True,
+            'accommodation': False
+        }
+        message_values = {
+            'source': 's3',
+            'key': 'accommodations.json'
+        }
+        messages = validate(schema, document, message_values)
+
+        assert len(messages) == 2
+        message = messages[0]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
+        message = messages[1]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
+    
+    def test_it_adds_specified_values_to_invalid_parent_message(self):
+        def schema(validator):
+            validator.required('metadata.accommodation_id', type='object')
+            validator.optional('accommodation.name', type='object')
+        
+        document = {
+            'metadata': True,
+            'accommodation': False
+        }
+        message_values = {
+            'source': 's3',
+            'key': 'accommodations.json'
+        }
+        messages = validate(schema, document, message_values)
+
+        assert len(messages) == 2
+        message = messages[0]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
+        message = messages[1]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
 
 
 def empty_schema(validator):

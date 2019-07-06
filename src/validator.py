@@ -4,11 +4,11 @@ from message import Message
 
 Field = namedtuple('Field', 'name value')
 
-def validate(schema, document):
+def validate(schema, document, message_values=None):
     if not isinstance(document, dict):
         raise TypeError('Document must be dictionary.')
 
-    _validator._reset(document)
+    _validator._reset(document, message_values)
     schema(_validator)
     _validator._report_extra_fields(document)    
 
@@ -20,9 +20,10 @@ class Validator:
         self._validated_fields = set()
         self.messages = []
     
-    def _reset(self, document):
+    def _reset(self, document, message_values):
         self._document = document
         self._validated_fields.clear()
+        self._message_values = message_values or {}
         self.messages.clear()
     
     def required(self, field_name, type=None, **kwargs):
@@ -30,6 +31,7 @@ class Validator:
             if isinstance(field, Message):
                 message = field
                 if not _is_parent_missing(message, field_name):
+                    message.add(**self._message_values)
                     self.messages.append(message)
             else:
                 self._validate(field, type, **kwargs)
@@ -39,6 +41,7 @@ class Validator:
             if isinstance(field, Message):
                 message = field
                 if message.type != 'missing_field':
+                    message.add(**self._message_values)
                     self.messages.append(message)
             else:
                 self._validate(field, type, **kwargs)
@@ -102,6 +105,7 @@ class Validator:
         
         message = type_validator(field.name, field.value, **kwargs)
         if not message is None:
+            message.add(**self._message_values)
             self.messages.append(message)
 
     def _report_extra_fields(self, object, prefix='', indexed_prefix=''):
