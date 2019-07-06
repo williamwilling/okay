@@ -1,8 +1,11 @@
-# Design Log
+# Development log
 
-Since I don't plan to develop and maintain this project for very long, I'll keep a log of the design considerations that went into this validator, so that anyone interested in taking it over, knows where I'm coming from. If you find yourself asking _what was he thinking?_, you should read this log.
+In this log, I'll keep a record of what I was thinking during the development of this library. I suspect this will mostly be a stream of consciousness, and I don't really expect a lot of people to read it. It's more an aid for me to reason problems through, to be able to find my previous decisions, and to a have a list of stuff I need to turn into proper documentation.
+
+_Historical note_: When I started this project, I had a design log instead of a development log. It was topic-based, limited to design issues, and intended to be readable. Over time, it became a mess, so I decided to create this development log – which is intended to be messy – and a separate document that describes the design of the library. The start of this development log is copied from the old design log.
 
 * [Background](#background)
+* [Basic concept](#basic-concept)
 * [Syntax](#syntax)
   * [Function call style](#function-call-style)
   * [Fluent style](#fluent-style)
@@ -11,21 +14,19 @@ Since I don't plan to develop and maintain this project for very long, I'll keep
 * [Error reporting](#error-reporting)
   * [Error location](#error-location)
   * [Showing errors](#showing-errors)
-  * [Non-validation errors](#non-validation-errors)
 * [Data sources](#data-sources)
+* [Data sinks](#data-sinks)
+* [Parallel processing](#parallel-processing)
+* [Validating extra fields](#validating-extra-fields)
+* [Data formats](#data-formats)
   * [Readers and stores](#readers-and-stores)
   * [Detecting the data format](#detecting-the-data-format)
   * [Non-stream-based stores](#non-stream-based-stores)
   * [Error handling](#error-handling)
-* [Data sinks](#data-sinks)
-  * [Multiple sources, multiple sinks](#multiple-sources-multiple-sinks)
-* [Parallel processing](#parallel-processing)
-* [Validation](#validation)
-  * [Extra fields](#extra-fields)
-  * [Nested fields](#nested-fields)
-* [Data types](#data-types)
-  * [Lists](#lists)
-  * [Multiple types](#multiple-types)
+* [Connecting sources and sinks](#connecting-sources-and-sinks)
+* [Sinking a collection of documents](#sinking-a-collection-of-documents)
+* [Multiple sources, multiple sinks](#multiple-sources-multiple-sinks)
+* [Non-validation errors](#non-validation-errors)
 
 ## Background
 
@@ -365,22 +366,6 @@ The most convenient format probably depends on the user's use case, so the most 
 
 You could keep the entire document in memory so that you can show it and highlight any validation errors, but if you're validating a lot of documents, it would require a huge amount of memory. Of course, if you display messages as soon as they occur, it wouldn't be a problem (because you don't need to keep the messages and documents in memory), but then you would lose the possibility to group by message. There's also the question of how to keep the document in memory: in it's original format? How would that work for Avro? Or would you keep it as a Python dictionary and let the reporter handle the conversion? This seems like more trouble than it's worth. If you want to see the validation error in context, you will just have to open the file or data store manually. If this is too much hassle, we'll have to write a separate tool that can make it easier.
 
-### Non-validation errors
-
-How should we report errors that don't result from validation? For example, what if the file we're trying to validate is corrupted? Python's default error handling mechanism is exception handling, but exceptions tend to abort the running function and that may not be what we want. For example, if one line in a CSV file contains too few commas, we don't want to stop processing the entire file. How do we set that up if we use exceptions? Also, we still want to report a problem like that, so how do we do that? Python's default for this is it's logging system, but now we have some errors that end up in the logs and some errors that end up in the validation report. Is it possible to combine the two? Let's run through a few examples and see where we end up.
-
-Suppose we try to validate a file format that's unknown to the validator. In that case, there is nothing we can do and it's okay to just abort, so raising an exception would be fine. Except, of course, if we are trying to validate multiple files and only one of them is in an unknown format. In that case, you would just want to skip that one file, report it, and continue with the rest. You can't include this problem in the validation report, because the validation report is document-based and you have no documents here; it's a different class of error. I see no problem with using Python's logging system for this, so let's go with that for now.
-
-Suppose you're reading JSON Lines, but one of the lines isn't valid JSON. Since every line is a document in JSON Lines, you could report this as a problem with a specific document. It also feels like a validation error. Only catch is that this problem doesn't crop up in the validator, it crops up in the [data reader](#readers-and-stores) (the component that translates the data into Python dictionaries). We can give the reader access to the validation report so it can add these kind of errors. The downside is that we're turning the validation report into some global error collection system instead of just the output of the validator. We might as well use Python's logging system then, which is already a global error collection system, but that has downsides which I'll explore in a moment. We could let the reader pass on the error to the validator so the validator can add it to the report. That's weird, to give someone else your problem, even though you know they can't do anything with it. Not sure yet.
-
-Suppose validation went fine and you want to write all valid documents to a [data sink](#data-sinks), but something goes wrong there, say the network is down. You can report this problem per document, since documents are fed to the sink one by one, but in case of a persistent error, you end up with the same error message a lot of times. Also, this doesn't feel like a validation error, it feels like a system's error, so I wouldn't go for adding it to the validation report. Exception, then? Probably, but one we would log and ignore, because you don't want the validation to stop. Well, that depends a bit. If you can't sink your valid documents, you're entire pipeline will stall, so unless the validation report is valuable to you on its own, there's no value in continuing. Of course, the problem may not be permanent and then only a few documents are dropped; that may actually be even worse. Fixing that requires the validation process to be atomic and I'm not going there. (It does give me the idea of sending a signal somewhere, for example SQS, once validation has completed. Later.) If you can't sink your invalid documents, that shouldn't be a showstopper. So? Log it and continue, I say.
-
-Suppose there's a bug in the validator. When dealing with lists, it tries to read an element that isn't there. This will automatically result in an exception. These situations should be rare, so it would be nice if we can just report them and continue with the next document. That does require that we catch the exception, though. We should also log it, but where? In the case of a bug in the validator proper, I do think it makes sense to put it in the validation report, since we are in the context of processing a document. What I don't know, is whether the document should count as valid or invalid; maybe it needs its own class. If the exception occurs in the reader, we're also in the context of processing a document, so I'd say the reader raises an exception, and the validator catches it and adds it to the validation report. I guess this would also cover the previously mentioned example of an invalid line of JSON in a JSON Lines file. If something goes wrong in a data sink, we're talking about the scenario described in the previous paragraph, I would say. Regardless of whether the error ends up in the validation report, a bug should always go to the log, because that's where you expect to find it if you're debugging the system; you don't want to rerun a validation job just to get error messages related to bugs.
-
-So, should we just write all errors – validation and otherwise – to the log and be done with it? I like the simplicity of using a single model. I also like the idea of using the default system, but I don't think it fits perfectly. Python's logging works well for string messages, but it requires a bit of wrangling if we want to log more complex records. It can handle it, but it's an advanced use case and I'm a bit worried it might confuse users of the validator. It's not a dealbreaker, though. If we take some care, users may not notice a thing. If we use Python's logging system, it does mean that our messages will be mixed with the messages produced by other code, like the libraries we use or the code the user wrote. This shouldn't be too much of a problem, since Python has the concept of loggers. We can just create a logger specifically for our own messages. If we want to sink our error report, we now need to extract it from the logging system. Python does allow you to write your logs to a file and you can write custom handlers to send it to other places, too. Again, it requires some wrangling, but the functionality is there.
-
-It seems like Python's logging system gives us all we need, but I'm still not convinced we should use it for everything. What it comes down to, is that we have two types of errors: system errors and validation errors. System errors should use the default logging system, but I think validation errors should be regular output of the validator; that's its entire purpose. I'll go with this rule of thumb: if an error is related to processing a document, it goes in the validation report, if it isn't, it goes to the log.
-
 ## Data sources
 
 The validator shouldn't care where the data comes from. This means two things:
@@ -392,9 +377,33 @@ Potentially, the amount of documents you want to validate is huge, so reading th
 
 In order to deal with multiple formats, we need to convert any input format to an intermediate format that the validator can use. The obvious intermediate format here is a Python dictionary.
 
+## Data sinks
+
+It occurs to me that for large datasets, you may want more than just a report of validation errors. If you're processing 10 GB of data, you don't want to read it in once to do validation and then for a second time to filter out the invalid documents. It would be much more convenient if you can direct documents somewhere. Write valid documents to this S3 bucket, write invalid documents to this SQS queue, write logs to Cloudwatch; something like that. If we're already streaming in documents, we might as well also stream them out.
+
+All of this should be separate from the validator proper, of course. There should be a coordinator that you can initialize with some data sources and some data sinks.
+
+## Parallel processing
+
+Given that we may want to run the validator on an a huge set of documents, it would be nice if we could run the validator on subsets in parallel. This adds some requirements.
+
+* The data source reader needs to be able to read subsets.
+* We need some way to determine what the subsets should be.
+* We need to be able to combine the validation results of the subsets.
+
+I don't want to spend a lot of time at this point on making parallel processing work. As long as the validator doesn't care where its input comes from, it should be possible to add parallelism later by extending the data source readers and the error reporter.
+
+## Validating extra fields
+
+When a document contains fields that don't occur in the schema, the validator can do one of two things: ignore the fields or report the fields. The schema author should be able to choose either. The question is, though, what is the default?
+
+If we silently accept extra fields by default, the schema author may never find out that he forgot to turn on reporting for extra fields. However, if we report on extra fields by default, the first test with an extra field will alert the author to the fact that he needs to turn reporting for extra fields off. So, reporting by default is the safer option.
+
+## Data formats
+
 ### Readers and stores
 
-As mentioned above, there's a distinction between where the data is stored and in what format the data is stored, so we need separate components for both. I'll call a component that deals with the format a reader, and a component that deals with where data is stored a store. There's a relationship between readers and stores that warrants a bit of exploration.
+[As mentioned previously](#data-sources), there's a distinction between where the data is stored and in what format the data is stored, so we need separate components for both. I'll call a component that deals with the format a reader, and a component that deals with where data is stored a store. There's a relationship between readers and stores that warrants a bit of exploration.
 
 The responsibility of a reader is to convert JSON, Avro, CSV, or whatever into a Python dictionary. There's a reader for each file format. The reader doesn't really need to know where the data comes from, so it calls a store to take care of that. This way, you only need one JSON reader (for example), but you can still read JSON files from the file system, or S3, or from an HTTP API. The opposite is also true: if you have an S3 store, it works for JSON, Avro, CSV, etc.
 
@@ -424,19 +433,21 @@ It might make it hard to report the [error location](#error-location), though. W
 
 Another potential aspect of the error location, is the file name. The reader may be responsible for the error location, but the file name is something it needs to get from the store and then pass on.
 
-## Data sinks
-
-It occurs to me that for large datasets, you may want more than just a report of validation errors. If you're processing 10 GB of data, you don't want to read it in once to do validation and then for a second time to filter out the invalid documents. It would be much more convenient if you can direct documents somewhere. Write valid documents to this S3 bucket, write invalid documents to this SQS queue, write logs to Cloudwatch; something like that. If we're already streaming in documents, we might as well also stream them out.
+## Connecting sources and sinks
 
 We can't just sink documents using the exact same bytes that were provided by the data source. First of all, because the validator doesn't receive the bytes, just the document, and second because this doesn't work for all file formats. For example, it would work for JSON Lines, but not for regular JSON, because that would need to be a list with brackets and commas, and CSV and Avro require headers. On top of that, you might want to output the document in a different format than it came in, so it would make sense to make a split between sinks (where you write it) and writers (in which format you write it), just as with sources and readers.
 
-I'm wondering what to do about collecting documents. Suppose we want to output JSON (not JSON Lines). If you write everything to a single file, it's easy: you start with a `[`, put a comma after every document but the last, and end with a `]`. But what if you write to SQS? As far as the writer is concerned, it's the same thing, but with SQS you would typically write every document to the queue on it's own, so you don't want all the documents to be formatted as a big list. The writer doesn't know this, so this means that the sink needs to call the writer, which is different with input, because there the reader calls the source. The writer needs to return the correct bytes for every document, so the sink can stream it out efficiently. So for JSON it would need to include the `[` for the first document and a comma for every subsequent document. Worst case scenario, the writer has to buffer all the documents before they can be written, but from the top of my head, I can't think of a data format where this is necessary.
-
 The [document numbers](#error-location) in the error report won't match with what's written to the sink. We could add extra information to the error report with an extra document number. That would work for file-based systems, but what about something like SQS or Kinesis? Maybe every sink should figure this out for itself and for some sinks it just doesn't make sense. That's not very satisfying. If you write invalid documents to SQS, you want to be able to figure out what's wrong with them. Should we add a unique identifier to each document? But then we are changing the data. Although, SQS does have the option to add metadata to a message. I guess making it sink-specific is the best way to go. It may also be possible to indicate a field in the document as a unique identifier, especially since the validator (hopefully) already made sure the field exists. That may not work in all situations, though, but when it does, it can be very handy. So handy, in fact, that we may want to add it to the output of the validator proper, not just to the sink.
 
-### Multiple sources, multiple sinks
+When data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I guess, sometimes that's what you want and sometimes it isn't, so it should be configurable. Either you specify that you want to sink all documents to one location or you provide a map from input location to output location. Is the latter always possible? Say that the input comes from the file system and is determined by a glob pattern: you don't know the exact file names beforehand. Now you want to write the output to SQS with a different queue for each file. You would need to provide a mapping function to do the conversion from file name to queue name. It's possible. A bug in the mapping function would lead to a lot of failed writes.
 
-When data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I guess sometimes that's what you want and sometimes it isn't, so it should be configurable, but how?
+## Sinking a collection of documents
+
+I'm wondering what to do about collecting documents. Suppose we want to output JSON (not JSON Lines). If you write everything to a single file, it's easy: you start with a `[`, put a comma after every document but the last, and end with a `]`. But what if you write to SQS? As far as the writer is concerned, it's the same thing, but with SQS you would typically write every document to the queue on it's own, so you don't want all the documents to be formatted as a big list. The writer doesn't know this, so this means that the sink needs to call the writer, which is different with input, because there the reader calls the source. The writer needs to return the correct bytes for every document, so the sink can stream it out efficiently. So for JSON it would need to include the `[` for the first document and a comma for every subsequent document. Worst case scenario, the writer has to buffer all the documents before they can be written, but from the top of my head, I can't think of a data format where this is necessary.
+
+## Multiple sources, multiple sinks
+
+[I mentioned this before](#connecting-sources-and-sinks): when data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I want to think this through some more.
 
 Let's first consider the possible scenarios. The simplest one is where you want to write all output to a single place, no matter where it came from. For example, all invalid documents should end up in a single file in S3. The next scenario is when there is a one-to-one mapping between the original store and the output location. For example, the input comes from several files in S3 and for each file there's an SQS queue that collects the invalid documents. The final scenario is where there isn't an obvious mapping, but you still want multiple output store, for example when you want to limit each output file to 500 documents.
 
@@ -519,254 +530,18 @@ for document in reader.documents():
 
 Well, that's not too bad, actually. In fact, I like it, because this way, we can write a couple of common mappers that you can reuse. If it turns out there are scenarios where a mapper function isn't flexible enough, we can still add a store name parameter to `sink.add()` to give the option to solve it in the controller, but right now, it seems that won't be necessary.
 
-## Parallel processing
+## Non-validation errors
 
-Given that we may want to run the validator on an a huge set of documents, it would be nice if we could run the validator on subsets in parallel. This adds some requirements.
+How should we report errors that don't result from validation? For example, what if the file we're trying to validate is corrupted? Python's default error handling mechanism is exception handling, but exceptions tend to abort the running function and that may not be what we want. For example, if one line in a CSV file contains too few commas, we don't want to stop processing the entire file. How do we set that up if we use exceptions? Also, we still want to report a problem like that, so how do we do that? Python's default for this is it's logging system, but now we have some errors that end up in the logs and some errors that end up in the validation report. Is it possible to combine the two? Let's run through a few examples and see where we end up.
 
-* The data source reader needs to be able to read subsets.
-* We need some way to determine what the subsets should be.
-* We need to be able to combine the validation results of the subsets.
+Suppose we try to validate a file format that's unknown to the validator. In that case, there is nothing we can do and it's okay to just abort, so raising an exception would be fine. Except, of course, if we are trying to validate multiple files and only one of them is in an unknown format. In that case, you would just want to skip that one file, report it, and continue with the rest. You can't include this problem in the validation report, because the validation report is document-based and you have no documents here; it's a different class of error. I see no problem with using Python's logging system for this, so let's go with that for now.
 
-I don't want to spend a lot of time at this point on making parallel processing work. As long as the validator doesn't care where its input comes from, it should be possible to add parallelism later by extending the data source readers and the error reporter.
+Suppose you're reading JSON Lines, but one of the lines isn't valid JSON. Since every line is a document in JSON Lines, you could report this as a problem with a specific document. It also feels like a validation error. Only catch is that this problem doesn't crop up in the validator, it crops up in the [data reader](#readers-and-stores) (the component that translates the data into Python dictionaries). We can give the reader access to the validation report so it can add these kind of errors. The downside is that we're turning the validation report into some global error collection system instead of just the output of the validator. We might as well use Python's logging system then, which is already a global error collection system, but that has downsides which I'll explore in a moment. We could let the reader pass on the error to the validator so the validator can add it to the report. That's weird, to give someone else your problem, even though you know they can't do anything with it. Not sure yet.
 
-## Validation
+Suppose validation went fine and you want to write all valid documents to a [data sink](#data-sinks), but something goes wrong there, say the network is down. You can report this problem per document, since documents are fed to the sink one by one, but in case of a persistent error, you end up with the same error message a lot of times. Also, this doesn't feel like a validation error, it feels like a system's error, so I wouldn't go for adding it to the validation report. Exception, then? Probably, but one we would log and ignore, because you don't want the validation to stop. Well, that depends a bit. If you can't sink your valid documents, you're entire pipeline will stall, so unless the validation report is valuable to you on its own, there's no value in continuing. Of course, the problem may not be permanent and then only a few documents are dropped; that may actually be even worse. Fixing that requires the validation process to be atomic and I'm not going there. (It does give me the idea of sending a signal somewhere, for example SQS, once validation has completed. Later.) If you can't sink your invalid documents, that shouldn't be a showstopper. So? Log it and continue, I say.
 
-### Extra fields
+Suppose there's a bug in the validator. When dealing with lists, it tries to read an element that isn't there. This will automatically result in an exception. These situations should be rare, so it would be nice if we can just report them and continue with the next document. That does require that we catch the exception, though. We should also log it, but where? In the case of a bug in the validator proper, I do think it makes sense to put it in the validation report, since we are in the context of processing a document. What I don't know, is whether the document should count as valid or invalid; maybe it needs its own class. If the exception occurs in the reader, we're also in the context of processing a document, so I'd say the reader raises an exception, and the validator catches it and adds it to the validation report. I guess this would also cover the previously mentioned example of an invalid line of JSON in a JSON Lines file. If something goes wrong in a data sink, we're talking about the scenario described in the previous paragraph, I would say. Regardless of whether the error ends up in the validation report, a bug should always go to the log, because that's where you expect to find it if you're debugging the system; you don't want to rerun a validation job just to get error messages related to bugs.
 
-When a document contains fields that don't occur in the schema, the validator can do one of two things: ignore the fields or report the fields. The schema author should be able to choose either. The question is, though, what is the default?
+So, should we just write all errors – validation and otherwise – to the log and be done with it? I like the simplicity of using a single model. I also like the idea of using the default system, but I don't think it fits perfectly. Python's logging works well for string messages, but it requires a bit of wrangling if we want to log more complex records. It can handle it, but it's an advanced use case and I'm a bit worried it might confuse users of the validator. It's not a dealbreaker, though. If we take some care, users may not notice a thing. If we use Python's logging system, it does mean that our messages will be mixed with the messages produced by other code, like the libraries we use or the code the user wrote. This shouldn't be too much of a problem, since Python has the concept of loggers. We can just create a logger specifically for our own messages. If we want to sink our error report, we now need to extract it from the logging system. Python does allow you to write your logs to a file and you can write custom handlers to send it to other places, too. Again, it requires some wrangling, but the functionality is there.
 
-If we silently accept extra fields by default, the schema author may never find out that he forgot to turn on reporting for extra fields. However, if we report on extra fields by default, the first test with an extra field will alert the author to the fact that he needs to turn reporting for extra fields off. So, reporting by default is the safer option.
-
-### Nested fields
-
-Suppose you have a schema that says `accommodation.geo.latitude` is required. What should happen if the field is missing? Well, that depends.
-
-```json
-{
-    "accommodation": {
-        "geo": {}
-    }
-}
-```
-
-This is the simple case: validation should fail with a message that `accommodation.geo.latitude` is missing.
-
-```json
-{
-    "accommodation": {}
-}
-```
-
-The answer to this case is less obvious: it should pass validation. The reason is that `accommodation.geo` may be optional, in which case it's fine that `accommodation.geo.latitude` is missing. And if `accommodation.geo` is required, it will result in an error message, making a message for `accommodation.geo.latitude` redundant.
-
-To belabor the point, suppose you have the following schema.
-
-```python
-validator.optional('accommodation.geo')
-validator.required('accommodation.geo.latitude')
-```
-
-This means that `accommodation.geo` is optional, but if it does exist, it must have a `latitude`. This would be impossible to express if the second rule in the schema automatically made `accommodation.geo` required.
-
-Note that in the schema above, the first rule doesn't do anything; leave it out and the schema is the same. You would only include it if you want to do additional validation on the field, like checking its type.
-
-```python
-validator.optional('accommodation.geo', type='object')
-validator.required('accommodation.geo.latitude')
-```
-
-Actually, this should also be unnecessary, because the second rule already implies that `accommodation.geo` is an object. I can't come up with a scenario where you would want to explicitly mark the parent as optional if you already have a rule for its child. Still, the option should be there in case someone comes up with a sensible custom validation that I can't think of right now.
-
-Another implicit effect of having a rule for a nested field, should be that all parents are considered expected fields. If your only validation rule is that `accommodation.geo.latitude` is required, you don't want to get messages that `accommodation` and `accommodation.geo` are extra fields.
-
-Here's another interesting case regarding nested fields. Take a look at the following schema and document.
-
-```python
-validator.required('accommodation')
-validator.required('accommodation.geo')
-```
-
-```json
-{}
-```
-
-Clearly, validation will fail, but what should the output be? The first rule results in a message, because `accommodation` is missing, but what about the second rule? `accommodation.geo` is also missing, but what is the value in reporting that? To keep the output from cluttering up with loads of unnecessary messages, the validator shouldn't report on `accommodation.geo`: if the parent is required and missing, we can stop validating the children.
-
-## Data types
-
-Which data types should we support? JSON already has a defined set of data types, so we could just use those. On the other hand, Avro has a different set of data types, so why not prefer those? It's probably better to pick a set that's format agnostic: the data schema should apply regardless of how the data is represented.
-
-Each data type will need it's own validation parameters. For example, numbers can have a minimum and a maximum, but those parameters make little sense for strings.
-
-```python
-validator.required('rating.aspect', type='string')
-validator.required('rating.score', type='number', min=0, max=10)
-```
-
-Then there's the question of which data types to support. Do we want a generic data type or will we make the distinction between integers and floating-point numbers? Should we have a separate data type for URLs or is it enough to have a string type with a regular expression? It's hard to get it right from the get-go, so it's useful if adding a new data type is relatively easy. When it comes to picking which data types to implement first, I think it makes sense to start with the generic and work towards the specific. For example, I'll implement the string type before the URL type, because you can validate URLs with the string type, but you can't validate strings with the URL type.
-
-### Lists
-
-Lists are a special case. They don't need a separate implementation; they can reuse their underlying data type. What I mean is: if you have a data type for strings, you don't need a separate data type for a list of strings; you just apply the validation for string to each element of the list. We do need a separate name, though. To me, the two obvious candidates are:
-
-* `[string]`
-* `list of string`
-
-I prefer the latter. It's easier to miss the square brackets than to miss the prefix `list of`. Grammatically, it should be `list of strings`, but instead of dealing with the pains of pluralizations, I'll suppress my inner grammar purist.
-
-Note that I'm assuming that lists or homogenous, i.e. all elements in the list are of the same type. My assumption is that this is by far the more common case, so for now, I'm not even going to consider elements of differing data types. If we want to support heterogeneous lists in the future, they'll need a different name, e.g. `collection`.
-
-Even if we limit ourselves to homogeneous lists, there are three variations and they require different ways of specifying validation parameters.
-
-* lists of objects
-* lists of scalars
-* lists of lists
-
-Lists of objects are easiest to define. Suppose we want to validate something like the following.
-
-```json
-{
-    "ratings": [{
-        "aspect": "cleanliness",
-        "score": 8.6
-    }, {
-        "aspect": "staff",
-        "score": 7.2
-    }]
-}
-```
-
-The validation rules would look like this.
-
-```python
-validator.required('ratings', type='list of object')
-validator.required('ratings[].aspect', type='string')
-validator.required('ratings[].score', type='number', min=0, max=10)
-```
-
-Note the suffix `[]` for the nested fields. Without it, the validator wouldn't know whether to complain about the fact that `ratings` is not an object, or to just process the list. It's possible to let the validator automatically pick the one it sees in the data. If you want to explicitly state `ratings` is a list, you can do so on separate line (and this is what the above example does). I like the square brackets though, because then there is no room for doubt, even when the rule for `ratings` is missing.
-
-Lists of scalars present a slight problem. Suppose we want to validate something like the following.
-
-```json
-{
-    "scores": [ 8.6, 7.2 ]
-}
-```
-
-Where do we put the validation parameters? We could put them on the validation rule for the list.
-
-```python
-validator.required('scores', type='list of number', min=0, max=10)
-```
-
-This example would mean that each number in the list must be between 0 and 10 (both inclusive). Technically, that's incorrect, because the minimum and maximum don't really apply to `scores`, but they apply to the elements inside `scores`. This may not even be a mere technicality. Suppose we want a way to validate that a list has a minimum number of elements and a maximum number of elements. `min` and `max` would be nice names for those validation parameters. Now we have a conflict. Of course, we could change the names to `min_length` and `max_length`, but sooner or later, you are going to run into another conflict. On top of that, it's now unclear what any given validation parameters applies to: the list or the elements? So, let's try another option.
-
-```python
-validator.required('scores', type='list of number', min=1, elements={ min=0, max=10 })
-```
-
-It gets rid of the ambiguity, so there's no more conflicts. It's a bit verbose, though. Especially considering that validation parameters for elements will probably be more common than validation parameters for lists. What if we change the default?
-
-```python
-validator.required('scores', type='list of number', min=0, max=10, list={ min=1 })
-```
-
-That works, but it doesn't sit well with me; technically, it makes more sense if the default applies to the list. Practically, it doesn't though. Let's consider one more alternative.
-
-```python
-validator.required('scores', type='list of number', min=1)
-validator.required('scores[]', type='number', min=0, max=10)
-```
-
-It requires an extra line, but it's unambiguous and technically correct. It's also an extra reason to use square brackets. `scores[]` now means: an element in the list `score`. Interestingly enough, with this option, if you don't have validation parameters for the list, you don't need to validate the list itself. The following is perfectly clear.
-
-```python
-validator.required('scores[]', type='number', min=0, max=10)
-```
-
-As stated before, I expect this to be the more common case, so the extra line might not be a big deal. There is another potential problem, though.
-
-```python
-validator.required('scores', type='list of number', min=1)
-validator.optional('scores[]', type='number', min=0, max=10)
-```
-
-Once the list is defined as required, it makes little sense to make the elements optional. The same goes for the inverse: if the list is optional, making the elements required has no meaning. In other words, optional or required always refers to the list, not to its elements. So, what do we do if there's a conflict? I guess we can treat the list as required – as that is the safest option – and issue a warning.
-
-There is still an issue with the validation rule for lists. Let's take another look.
-
-```python
-validator.required('scores', type='list of number')
-```
-
-The validator can check that `scores` is a list, but what is it supposed to do with the elements? It can't really validate them, because it doesn't have the validation parameters. Perhaps, it can validate only the type of the elements, but if we then add a validation rule for the elements, the validator might report type errors in the elements twice. We might as well leave out the element type from the validation rule for lists altogether.
-
-```python
-validator.required('scores', type='list')
-validator.required('scores[]', type='number')
-```
-
-You only need the first validation rule if you want to specify validation parameters that apply to the list. Again, I suspect that's an uncommon case.
-
-I like the last syntax best, despite the possible required/optional conflict. It's unambiguous, it's technically correct. It makes the most sense, in my opinion.
-
-I didn't think lists of lists all the way through yet, but I'm hoping that just implementing it recursively magically solves the issue. With the syntax I chose for lists, I do expect this to be the case. We'll see.
-
-### Multiple types
-
-What if the type of a field is not restricted to one option? For example, say that a rating can either be a string, like `excellent`, or a score.
-
-```python
-validator.required('rating', type='string/number')
-```
-
-This is neat, but it doesn't allow us to specify validation parameters, because we wouldn't know which type they'd belong to.
-
-```python
-validator.required('rating', type='string/number',
-    string={ options=['poor', 'good', 'excellent'] },
-    number={ min=0, max=10 })
-```
-
-Ugh. This is just unwieldy. I don't even want to think about what happens when lists get involved. Let's try something else.
-
-```python
-validator.required('rating', type='string', options=['poor', 'good', 'excellent'])
-validator.required('rating', type='number', min=0, max=10)
-```
-
-So, in this case, having multiple validation rules for the same field would mean that only one of those rules needs to apply for the validation to succeed. It's clean, but I'm a bit worried about the fact that we can't flag accidental duplicate rules any more. What if we make it explicit?
-
-```python
-validator.possible('rating', type='string', options=['poor', 'good', 'excellent'])
-validator.possible('rating', type='number', min=0, max=10)
-```
-
-Not bad, but how do we indicate whether the field is required or optional? Maybe we can make that explicit as well.
-
-```python
-validator.required('rating')
-validator.possible('rating', type='string', options=['poor', 'good', 'excellent'])
-validator.possible('rating', type='number', min=0, max=10)
-```
-
-That might just work. Of course, if you specify a type for the required-rule, then subsequent possible-rules will be ignored and result in a warning.
-
-Coincidentally, this may make heterogeneous lists easier.
-
-```python
-validator.possible('ratings[]', type='string')
-validator.possible('ratings[]', type='number')
-```
-
-I'm not sure it works for lists of objects, though.
-
-```python
-validator.possible('ratings[]', type='number')
-validator.possible('ratings[]', type='object')
-validator.required('ratings[].aspect', type='string')
-validator.required('ratings[].score', type='number')
-```
-
-Would that work?
+It seems like Python's logging system gives us all we need, but I'm still not convinced we should use it for everything. What it comes down to, is that we have two types of errors: system errors and validation errors. System errors should use the default logging system, but I think validation errors should be regular output of the validator; that's its entire purpose. I'll go with this rule of thumb: if an error is related to processing a document, it goes in the validation report, if it isn't, it goes to the log.
