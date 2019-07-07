@@ -1,4 +1,6 @@
-# Validator
+# Okay
+
+Okay is a library for validating Python dictionaries.
 
 ## Dependencies
 

@@ -1,6 +1,6 @@
-import type_validators
 from collections import namedtuple
-from message import Message
+from . import type_validators
+from .message import Message
 
 Field = namedtuple('Field', 'name value')
 
@@ -9,14 +9,11 @@ def validate(schema, document, message_values=None):
         raise TypeError('Document must be dictionary.')
 
     _validator._reset(document, message_values)
-    
-    schema.__globals__['required'] = _validator.required
-    schema.__globals__['optional'] = _validator.optional
-    schema.__globals__['ignore_extra_fields'] = _validator.ignore_extra_fields
+
     try:
-        schema(_validator)
-    except TypeError:
         schema()
+    except TypeError:
+        schema(_validator)
 
     _validator._report_extra_fields(document)    
 

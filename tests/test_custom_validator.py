@@ -1,5 +1,5 @@
-from type_validators import validate_custom
-from message import Message
+from okay.type_validators import validate_custom
+from okay.message import Message
 
 class TestCustomValidator:
     def test_it_runs_a_custom_validation_function(self):

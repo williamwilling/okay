@@ -1,4 +1,4 @@
-from message import Message
+from ..message import Message
 
 def validate_object(field, value):
     if not isinstance(value, dict):

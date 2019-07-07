@@ -1,4 +1,4 @@
-from message import Message
+from ..message import Message
 
 def validate_list(field, value, **kwargs):
     if not isinstance(value, list):

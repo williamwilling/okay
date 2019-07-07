@@ -1,6 +1,6 @@
 import math
-from message import Message
-from type_validators import validate_number
+from ..message import Message
+from okay.type_validators import validate_number
 
 def validate_int(field, value, **kwargs):
     if not (isinstance(value, (int, float)) and value == int(value)):

@@ -1,4 +1,4 @@
-from type_validators import validate_bool
+from okay.type_validators import validate_bool
 
 class TestBooleanValidator:
     def test_it_accepts_a_bool(self):

@@ -33,6 +33,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
   * [Validation messages](#validation-messages)
   * [Validator interface](#validator-interface)
 * [No Schema-class](#no-schema-class)
+* [Library name](#library-name)
 
 ## Background
 
@@ -733,3 +734,19 @@ It's a bit iffy to have one class that can behave in two different ways, but it 
 My idea of [improving the syntax of a schema using a convenience class](#syntax-improvements) isn't going to work. I forgot that Python always requires explicit `self`. The upside of this is that it forced me to come up with another way to simplify the syntax and I can do that for the regular schema function by adding functions like `required()` and `optional()` to the schema functions globals. No more `Schema`-class necessary!
 
 The only downside seems to be that my code environment now flags the validator functions as undefined and either I'm stuck with squiggly lines all over my schema, or I have to disable the warning outright. I'll accept this downside, because the schema code is joyfully simple right now.‸
+
+No, I changed my mind: I can't live with the squiggly lines. Instead of adding the validator functions as globals to the schema function, I'll let the user import the functions into the global namespace, like so:
+
+```python
+from validator.schema import required, optional
+
+def schema():
+    required('accommodation')
+    optional('accommodation.geo')
+```
+
+A schema definition should typically be in its own file, so the namespace pollution isn't much of a problem. Manually listing the functions is tedious, so I'll make `from validator.schema import *` work correctly.
+
+## Library name
+
+Until now, I just called the library _validator_. I don't like the name much. Not only is it unimaginative, but it can be confusing in conversation: we someone say _validator_, do they mean the component or the library? So, I wanted to change it. I considered _validation_. It's slighlty better in conversation, because people would refer to the library as _the validation library_. It's still miserably unimaginative, though. After a short brainstorm, I decided on the name _Okay_. Memorable, fitting, and easy to use.

@@ -1,6 +1,6 @@
 import pytest
 from decimal import Decimal
-from type_validators import validate_number
+from okay.type_validators import validate_number
 
 class TestNumberValidator:
     def test_it_accepts_an_integer(self):

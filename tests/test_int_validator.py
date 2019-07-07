@@ -1,4 +1,4 @@
-from type_validators import validate_int
+from okay.type_validators import validate_int
 
 class TestIntValidator:
     def test_it_accepts_an_int(self):

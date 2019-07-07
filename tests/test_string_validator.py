@@ -1,4 +1,4 @@
-from type_validators import validate_string
+from okay.type_validators import validate_string
 
 class TestStringValidator:
     def test_it_accepts_a_string(self):

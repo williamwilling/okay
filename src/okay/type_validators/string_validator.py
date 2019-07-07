@@ -1,5 +1,5 @@
 import re
-from message import Message
+from ..message import Message
 
 def validate_string(field, value, **kwargs):
     if not isinstance(value, str):

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from message import Message
+from ..message import Message
 
 def validate_number(field, value, **kwargs):
     if not isinstance(value, (int, float, Decimal)):

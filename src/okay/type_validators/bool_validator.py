@@ -1,4 +1,4 @@
-from message import Message
+from ..message import Message
 
 def validate_bool(field, value):
     if not isinstance(value, bool):

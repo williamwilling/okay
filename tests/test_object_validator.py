@@ -1,4 +1,4 @@
-from type_validators import validate_object
+from okay.type_validators import validate_object
 
 class TestObjectValidator:
     def test_it_accepts_an_object(self):

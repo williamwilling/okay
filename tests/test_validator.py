@@ -1,5 +1,6 @@
 import pytest
-from validator import validate
+from okay import validate
+from okay.schema import *
 
 class TestValidator:
     def test_it_accepts_any_document_when_the_schema_is_empty(self):

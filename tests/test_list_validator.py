@@ -1,4 +1,4 @@
-from type_validators import validate_list
+from okay.type_validators import validate_list
 
 class TestListValidator:
     def test_it_accepts_a_list(self):
