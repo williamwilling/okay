@@ -32,6 +32,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
   * [Syntax improvements](#syntax-improvements)
   * [Validation messages](#validation-messages)
   * [Validator interface](#validator-interface)
+* [No Schema-class](#no-schema-class)
 
 ## Background
 
@@ -669,7 +670,7 @@ That is neat, because `validate()` doesn't even need to know if the schema is a 
 from validator import Schema
 
 class AccommodationSchema(Schema):
-    def check():
+    def definition():
         required('accommodation', type='object')
         required('accommodation.name', type='string')
 
@@ -726,3 +727,9 @@ class Schema:
 ```
 
 It's a bit iffy to have one class that can behave in two different ways, but it is oh so convenient. And isn't that what a convenience class is all about?
+
+## No Schema-class
+
+My idea of [improving the syntax of a schema using a convenience class](#syntax-improvements) isn't going to work. I forgot that Python always requires explicit `self`. The upside of this is that it forced me to come up with another way to simplify the syntax and I can do that for the regular schema function by adding functions like `required()` and `optional()` to the schema functions globals. No more `Schema`-class necessary!
+
+The only downside seems to be that my code environment now flags the validator functions as undefined and either I'm stuck with squiggly lines all over my schema, or I have to disable the warning outright. I'll accept this downside, because the schema code is joyfully simple right now.‸

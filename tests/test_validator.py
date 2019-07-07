@@ -529,6 +529,56 @@ class TestValidator:
         message = messages[1]
         assert message.source == 's3'
         assert message.key == 'accommodations.json'
+    
+    def test_it_makes_required_available_to_schema_outside_of_validator_instance(self):
+        def schema(validator):
+            required('metadata')
+            required('accommodation')
+        
+        document = {
+            'metadata': {}
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation'
+    
+    def test_it_makes_optional_available_to_schema_outside_of_validator_instance(self):
+        def schema(validator):
+            optional('metadata', type='object')
+            optional('accommodation')
+        
+        document = {
+            'metadata': 8
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'metadata'
+    
+    def test_it_makes_ignore_extra_fields_available_to_schema_outside_of_validator_instance(self):
+        def schema(validator):
+            ignore_extra_fields()
+        
+        document = {
+            'metadata': {}
+        }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_accepts_a_parameterless_schema(self):
+        def schema():
+            pass
+        
+        document = {}
+        messages = validate(schema, document)
+
+        assert messages == []
 
 
 def empty_schema(validator):
