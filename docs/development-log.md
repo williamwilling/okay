@@ -17,7 +17,12 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Data sources](#data-sources)
 * [Data sinks](#data-sinks)
 * [Parallel processing](#parallel-processing)
-* [Validating extra fields](#validating-extra-fields)
+* [Default behavior](#default-behavior)
+  * [Extra fields](#extra-fields)
+  * [Nested fields](#nested-fields)
+* [Data types](#data-types)
+  * [Lists](#lists)
+  * [Multiple types](#multiple-types)
 * [Data formats](#data-formats)
   * [Readers and stores](#readers-and-stores)
   * [Detecting the data format](#detecting-the-data-format)
@@ -402,11 +407,247 @@ Given that we may want to run the validator on an a huge set of documents, it wo
 
 I don't want to spend a lot of time at this point on making parallel processing work. As long as the validator doesn't care where its input comes from, it should be possible to add parallelism later by extending the data source readers and the error reporter.
 
-## Validating extra fields
+## Default behavior
+
+### Extra fields
 
 When a document contains fields that don't occur in the schema, the validator can do one of two things: ignore the fields or report the fields. The schema author should be able to choose either. The question is, though, what is the default?
 
 If we silently accept extra fields by default, the schema author may never find out that he forgot to turn on reporting for extra fields. However, if we report on extra fields by default, the first test with an extra field will alert the author to the fact that he needs to turn reporting for extra fields off. So, reporting by default is the safer option.
+
+### Nested fields
+
+Suppose you have a schema that says `accommodation.geo.latitude` is required. What should happen if the field is missing? Well, that depends.
+
+```json
+{
+    "accommodation": {
+        "geo": {}
+    }
+}
+```
+
+This is the simple case: validation should fail with a message that `accommodation.geo.latitude` is missing.
+
+```json
+{
+    "accommodation": {}
+}
+```
+
+The answer to this case is less obvious: it should pass validation. The reason is that `accommodation.geo` may be optional, in which case it's fine that `accommodation.geo.latitude` is missing. And if `accommodation.geo` is required, it will result in an error message, making a message for `accommodation.geo.latitude` redundant.
+
+To belabor the point, suppose you have the following schema.
+
+```python
+validator.optional('accommodation.geo')
+validator.required('accommodation.geo.latitude')
+```
+
+This means that `accommodation.geo` is optional, but if it does exist, it must have a `latitude`. This would be impossible to express if the second rule in the schema automatically made `accommodation.geo` required.
+
+Note that in the schema above, the first rule doesn't do anything; leave it out and the schema is the same. You would only include it if you want to do additional validation on the field, like checking its type.
+
+```python
+validator.optional('accommodation.geo', type='object')
+validator.required('accommodation.geo.latitude')
+```
+
+Actually, this should also be unnecessary, because the second rule already implies that `accommodation.geo` is an object. I can't come up with a scenario where you would want to explicitly mark the parent as optional if you already have a rule for its child. Still, the option should be there in case someone comes up with a sensible custom validation that I can't think of right now.
+
+Another implicit effect of having a rule for a nested field, should be that all parents are considered expected fields. If your only validation rule is that `accommodation.geo.latitude` is required, you don't want to get messages that `accommodation` and `accommodation.geo` are extra fields.
+
+Here's another interesting case regarding nested fields. Take a look at the following schema and document.
+
+```python
+validator.required('accommodation')
+validator.required('accommodation.geo')
+```
+
+```json
+{}
+```
+
+Clearly, validation will fail, but what should the output be. The first rule results in a message, because `accommodation` is missing, but what about the second rule? `accommodation.geo` is also missing, but what is the value in reporting that? To keep the output from cluttering up with loads of unnecessary messages, the validator shouldn't report on `accommodation.geo`: if the parent is required and missing, we can stop validating the children.
+
+## Data types
+
+Which data types should we support? JSON already has a defined set of data types, so we could just use those. On the other hand, Avro has a different set of data types, so why not prefer those? It's probably better to pick a set that's format agnostic: the data schema should apply regardless of how the data is represented.
+
+Each data type will need it's own validation parameters. For example, numbers can have a minimum and a maximum, but those parameters make little sense for strings.
+
+```python
+validator.required('rating.aspect', type='string')
+validator.required('rating.score', type='number', min=0, max=10)
+```
+
+Then there's the question of which data types to support. Do we want a generic data type or will we make the distinction between integers and floating-point numbers? Should we have a separate data type for URLs or is it enough to have a string type with a regular expression? It's hard to get it right from the get-go, so it's useful if adding a new data type is relatively easy. When it comes to picking which data types to implement first, I think it makes sense to start with the generic and work towards the specific. For example, I'll implement the string type before the URL type, because you can validate URLs with the string type, but you can't validate strings with the URL type.
+
+### Lists
+
+Lists are a special case. They don't need a separate implementation; they can reuse their underlying data type. What I mean is: if you have a data type for strings, you don't need a separate data type for a list of strings; you just apply the validation for string to each element of the list. We do need a separate name, though. To me, the two obvious candidates are:
+
+* `[string]`
+* `list of string`
+
+I prefer the latter. It's easier to miss the square brackets than to miss the prefix `list of`. Grammatically, it should be `list of strings`, but instead of dealing with the pains of pluralizations, I'll suppress my inner grammar purist.
+
+Note that I'm assuming that lists or homogenous, i.e. all elements in the list are of the same type. My assumption is that this is by far the more common case, so for now, I'm not even going to consider elements of differing data types. If we want to support heterogeneous lists in the future, they'll need a different name, e.g. `collection`.
+
+Even if we limit ourselves to homogeneous lists, there are three variations and they require different ways of specifying validation parameters.
+
+* lists of objects
+* lists of scalars
+* lists of lists
+
+Lists of objects are easiest to define. Suppose we want to validate something like the following.
+
+```json
+{
+    "ratings": [{
+        "aspect": "cleanliness",
+        "score": 8.6
+    }, {
+        "aspect": "staff",
+        "score": 7.2
+    }]
+}
+```
+
+The validation rules would look like this.
+
+```python
+validator.required('ratings', type='list of object')
+validator.required('ratings[].aspect', type='string')
+validator.required('ratings[].score', type='number', min=0, max=10)
+```
+
+Note the suffix `[]` for the nested fields. Without it, the validator wouldn't know whether to complain about the fact that `ratings` is not an object, or to just process the list. It's possible to let the validator automatically pick the one it sees in the data. If you want to explicitly state `ratings` is a list, you can do so on separate line (and this is what the above example does). I like the square brackets though, because then there is no room for doubt, even when the rule for `ratings` is missing.
+
+Lists of scalars present a slight problem. Suppose we want to validate something like the following.
+
+```json
+{
+    "scores": [ 8.6, 7.2 ]
+}
+```
+
+Where do we put the validation parameters? We could put them on the validation rule for the list.
+
+```python
+validator.required('scores', type='list of number', min=0, max=10)
+```
+
+This example would mean that each number in the list must be between 0 and 10 (both inclusive). Technically, that's incorrect, because the minimum and maximum don't really apply to `scores`, but they apply to the elements inside `scores`. This may not even be a mere technicality. Suppose we want a way to validate that a list has a minimum number of elements and a maximum number of elements. `min` and `max` would be nice names for those validation parameters. Now we have a conflict. Of course, we could change the names to `min_length` and `max_length`, but sooner or later, you are going to run into another conflict. On top of that, it's now unclear what any given validation parameters applies to: the list or the elements? So, let's try another option.
+
+```python
+validator.required('scores', type='list of number', min=1, elements={ min=0, max=10 })
+```
+
+It gets rid of the ambiguity, so there's no more conflicts. It's a bit verbose, though. Especially considering that validation parameters for elements will probably be more common than validation parameters for lists. What if we change the default?
+
+```python
+validator.required('scores', type='list of number', min=0, max=10, list={ min=1 })
+```
+
+That works, but it doesn't sit well with me; technically, it makes more sense if the default applies to the list. Practically, it doesn't though. Let's consider one more alternative.
+
+```python
+validator.required('scores', type='list of number', min=1)
+validator.required('scores[]', type='number', min=0, max=10)
+```
+
+It requires an extra line, but it's unambiguous and technically correct. It's also an extra reason to use square brackets. `scores[]` now means: an element in the list `score`. Interestingly enough, with this option, if you don't have validation parameters for the list, you don't need to validate the list itself. The following is perfectly clear.
+
+```python
+validator.required('scores[]', type='number', min=0, max=10)
+```
+
+As stated before, I expect this to be the more common case, so the extra line might not be a big deal. There is another potential problem, though.
+
+```python
+validator.required('scores', type='list of number', min=1)
+validator.optional('scores[]', type='number', min=0, max=10)
+```
+
+Once the list is defined as required, it makes little sense to make the elements optional. The same goes for the inverse: if the list is optional, making the elements required has no meaning. In other words, optional or required always refers to the list, not to its elements. So, what do we do if there's a conflict? I guess we can treat the list as required – as that is the safest option – and issue a warning.
+
+There is still an issue with the validation rule for lists. Let's take another look.
+
+```python
+validator.required('scores', type='list of number')
+```
+
+The validator can check that `scores` is a list, but what is it supposed to do with the elements? It can't really validate them, because it doesn't have the validation parameters. Perhaps, it can validate only the type of the elements, but if we then add a validation rule for the elements, the validator might report type errors in the elements twice. We might as well leave out the element type from the validation rule for lists altogether.
+
+```python
+validator.required('scores', type='list')
+validator.required('scores[]', type='number')
+```
+
+You only need the first validation rule if you want to specify validation parameters that apply to the list. Again, I suspect that's an uncommon case.
+
+I like the last syntax best, despite the possible required/optional conflict. It's unambiguous, it's technically correct. It makes the most sense, in my opinion.
+
+I didn't think lists of lists all the way through yet, but I'm hoping that just implementing it recursively magically solves the issue. With the syntax I chose for lists, I do expect this to be the case. We'll see.
+
+### Multiple types
+
+What if the type of a field is not restricted to one option? For example, say that a rating can either be a string, like `excellent`, or a score.
+
+```python
+validator.required('rating', type='string/number')
+```
+
+This is neat, but it doesn't allow us to specify validation parameters, because we wouldn't know which type they'd belong to.
+
+```python
+validator.required('rating', type='string/number',
+    string={ options=['poor', 'good', 'excellent'] },
+    number={ min=0, max=10 })
+```
+
+Ugh. This is just unwieldy. I don't even want to think about what happens when lists get involved. Let's try something else.
+
+```python
+validator.required('rating', type='string', options=['poor', 'good', 'excellent'])
+validator.required('rating', type='number', min=0, max=10)
+```
+
+So, in this case, having multiple validation rules for the same field would mean that only one of those rules needs to apply for the validation to succeed. It's clean, but I'm a bit worried about the fact that we can't flag accidental duplicate rules any more. What if we make it explicit?
+
+```python
+validator.possible('rating', type='string', options=['poor', 'good', 'excellent'])
+validator.possible('rating', type='number', min=0, max=10)
+```
+
+Not bad, but how do we indicate whether the field is required or optional? Maybe we can make that explicit as well.
+
+```python
+validator.required('rating')
+validator.possible('rating', type='string', options=['poor', 'good', 'excellent'])
+validator.possible('rating', type='number', min=0, max=10)
+```
+
+That might just work. Of course, if you specify a type for the required-rule, then subsequent possible-rules will be ignored and result in a warning.
+
+Coincidentally, this may make heterogeneous lists easier.
+
+```python
+validator.possible('ratings[]', type='string')
+validator.possible('ratings[]', type='number')
+```
+
+I'm not sure it works for lists of objects, though.
+
+```python
+validator.possible('ratings[]', type='number')
+validator.possible('ratings[]', type='object')
+validator.required('ratings[].aspect', type='string')
+validator.required('ratings[].score', type='number')
+```
+
+Would that work?
 
 ## Data formats
 
