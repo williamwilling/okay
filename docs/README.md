@@ -1,3 +1,3 @@
 # Documentation
 
-All features are undocumented.
+* [User Guide](user-guide.md)
