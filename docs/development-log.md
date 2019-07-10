@@ -34,6 +34,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
   * [Validator interface](#validator-interface)
 * [No Schema-class](#no-schema-class)
 * [Library name](#library-name)
+* [Parameterless schema functions](#parameterless-schema-functions)
 
 ## Background
 
@@ -750,3 +751,7 @@ A schema definition should typically be in its own file, so the namespace pollut
 ## Library name
 
 Until now, I just called the library _validator_. I don't like the name much. Not only is it unimaginative, but it can be confusing in conversation: we someone say _validator_, do they mean the component or the library? So, I wanted to change it. I considered _validation_. It's slighlty better in conversation, because people would refer to the library as _the validation library_. It's still miserably unimaginative, though. After a short brainstorm, I decided on the name _Okay_. Memorable, fitting, and easy to use.
+
+## Parameterless schema functions
+
+With the introduction of the [global validation functions](#no-schema-class) it's no longer necessary to pass a `Validator` object to a schema function. Originally, I wanted to keep both options available – so you could write either `def schema()` or `def schema(validator)` – but no one will use the latter, so why bother? Also, if it turns out that it is useful to have the document available in the schema function, the most natural thing to do is pass it as a parameter, but that's not possible if that parameter already contains the `Validator` object. Instead of changing the meaning of the parameter later on – which would be a breaking change – I decided to remove the parameter for now and keep the option open to add the document as optional parameter later.

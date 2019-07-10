@@ -9,12 +9,7 @@ def validate(schema, document, message_values=None):
         raise TypeError('Document must be dictionary.')
 
     _validator._reset(document, message_values)
-
-    try:
-        schema()
-    except TypeError:
-        schema(_validator)
-
+    schema()
     _validator._report_extra_fields(document)    
 
     return _validator.messages

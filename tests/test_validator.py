@@ -15,8 +15,8 @@ class TestValidator:
             validate(empty_schema, document)
     
     def test_it_reports_a_missing_required_top_level_field(self):
-        def schema(validator):
-            validator.required('metadata')
+        def schema():
+            required('metadata')
 
         document = {}
         messages = validate(schema, document)
@@ -27,8 +27,8 @@ class TestValidator:
         assert message.field == 'metadata'
     
     def test_it_accepts_a_required_top_level_field(self):
-        def schema(validator):
-            validator.required('metadata')
+        def schema():
+            required('metadata')
         
         document = { 'metadata': True }
         messages = validate(schema, document)
@@ -45,8 +45,8 @@ class TestValidator:
         assert message.field == 'metadata'
     
     def test_it_accepts_a_missing_optional_top_level_field(self):
-        def schema(validator):
-            validator.optional('trace')
+        def schema():
+            optional('trace')
         
         document = {}
         messages = validate(schema, document)
@@ -54,8 +54,8 @@ class TestValidator:
         assert messages == []
 
     def test_it_accepts_a_present_optional_top_level_field(self):
-        def schema(validator):
-            validator.optional('trace')
+        def schema():
+            optional('trace')
         
         document = { 'trace': True }
         messages = validate(schema, document)
@@ -63,8 +63,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_ignores_an_extra_top_level_field(self):
-        def schema(validator):
-            validator.ignore_extra_fields()
+        def schema():
+            ignore_extra_fields()
         
         document = { 'trace': True }
         messages = validate(schema, document)
@@ -72,8 +72,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_nested_required_field(self):
-        def schema(validator):
-            validator.required('accommodation.geo.latitude')
+        def schema():
+            required('accommodation.geo.latitude')
         
         document = {
             'accommodation': {
@@ -87,8 +87,8 @@ class TestValidator:
         assert messages == []
 
     def test_it_reports_a_missing_required_field(self):
-        def schema(validator):
-            validator.required('accommodation.name')
+        def schema():
+            required('accommodation.name')
         
         document = { 'accommodation': {} }
         messages = validate(schema, document)
@@ -99,8 +99,8 @@ class TestValidator:
         assert message.field == 'accommodation.name'
     
     def test_it_accepts_a_missing_required_field_if_its_parent_is_missing(self):
-        def schema(validator):
-            validator.required('accommodation.name')
+        def schema():
+            required('accommodation.name')
         
         document = {}
         messages = validate(schema, document)
@@ -108,8 +108,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_if_parent_field_is_not_an_object(self):
-        def schema(validator):
-            validator.required('accommodation.name')
+        def schema():
+            required('accommodation.name')
         
         document = { 'accommodation': 'name' }
         messages = validate(schema, document)
@@ -121,9 +121,9 @@ class TestValidator:
         assert message.expected == 'object'
     
     def test_it_skips_nested_field_if_required_parent_is_missing(self):
-        def schema(validator):
-            validator.required('accommodation')
-            validator.required('accommodation.name')
+        def schema():
+            required('accommodation')
+            required('accommodation.name')
 
         document = {}
         messages = validate(schema, document)
@@ -133,8 +133,8 @@ class TestValidator:
         assert message.field == 'accommodation'
     
     def test_it_reports_a_parent_that_is_not_an_object(self):
-        def schema(validator):
-            validator.required('accommodation.geo.latitude')
+        def schema():
+            required('accommodation.geo.latitude')
         
         document = { 'accommodation': True }
         messages = validate(schema, document)
@@ -146,8 +146,8 @@ class TestValidator:
         assert message.expected == 'object'
     
     def test_it_accepts_a_required_object_with_the_correct_type(self):
-        def schema(validator):
-            validator.required('accommodation', type='object')
+        def schema():
+            required('accommodation', type='object')
         
         document = { 'accommodation': {} }
         messages = validate(schema, document)
@@ -155,8 +155,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_a_required_object_with_the_incorrect_type(self):
-        def schema(validator):
-            validator.required('accommodation', type='object')
+        def schema():
+            required('accommodation', type='object')
         
         document = { 'accommodation': True }
         messages = validate(schema, document)
@@ -168,8 +168,8 @@ class TestValidator:
         assert message.expected == 'object'
     
     def test_it_accepts_an_optional_object_with_the_correct_type(self):
-        def schema(validator):
-            validator.optional('trace', type='object')
+        def schema():
+            optional('trace', type='object')
         
         document = { 'trace': {} }
         messages = validate(schema, document)
@@ -177,8 +177,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_an_optional_object_with_the_incorrect_type(self):
-        def schema(validator):
-            validator.optional('trace', type='object')
+        def schema():
+            optional('trace', type='object')
         
         document = { 'trace': True }
         messages = validate(schema, document)
@@ -190,11 +190,11 @@ class TestValidator:
         assert message.expected == 'object'
     
     def test_it_accepts_a_value_with_custom_type(self):
-        def schema(validator):
+        def schema():
             def custom_validator(field, value):
                 pass
             
-            validator.required('accommodation', type='custom', validator=custom_validator)
+            required('accommodation', type='custom', validator=custom_validator)
         
         document = { 'accommodation': {} }
         messages = validate(schema, document)
@@ -202,8 +202,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_value_with_number_type(self):
-        def schema(validator):
-            validator.required('stars', type='number', min=0, max=5)
+        def schema():
+            required('stars', type='number', min=0, max=5)
         
         document = { 'stars': 3 }
         messages = validate(schema, document)
@@ -211,8 +211,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_value_with_string_type(self):
-        def schema(validator):
-            validator.required('unit', type='string', options=['sqm', 'sqft'])
+        def schema():
+            required('unit', type='string', options=['sqm', 'sqft'])
         
         document = { 'unit': 'sqft' }
         messages = validate(schema, document)
@@ -220,8 +220,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_value_with_bool_type(self):
-        def schema(validator):
-            validator.required('has_bathroom', type='bool')
+        def schema():
+            required('has_bathroom', type='bool')
         
         document = { 'has_bathroom': False }
         messages = validate(schema, document)
@@ -229,8 +229,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_value_with_int_type(self):
-        def schema(validator):
-            validator.required('stars', type='int', min=0, max=5)
+        def schema():
+            required('stars', type='int', min=0, max=5)
         
         document = { 'stars': 4 }
         messages = validate(schema, document)
@@ -238,8 +238,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_value_with_list_type(self):
-        def schema(validator):
-            validator.required('rooms', type='list')
+        def schema():
+            required('rooms', type='list')
         
         document = { 'rooms': [] }
         messages = validate(schema, document)
@@ -247,8 +247,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_list_of_valid_scalars(self):
-        def schema(validator):
-            validator.required('scores[]', type='number')
+        def schema():
+            required('scores[]', type='number')
         
         document = { 'scores': [ 1, 2, 3 ]}
         messages = validate(schema, document)
@@ -256,8 +256,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_list_of_invalid_scalars(self):
-        def schema(validator):
-            validator.required('scores[]', type='number')
+        def schema():
+            required('scores[]', type='number')
         
         document = { 'scores': [ 1, 'good', 4, 'excellent' ]}
         messages = validate(schema, document)
@@ -269,8 +269,8 @@ class TestValidator:
         assert message.expected == 'number'
     
     def test_it_accepts_valid_objects_in_a_list(self):
-        def schema(validator):
-            validator.required('accommodation.ratings[].aspect', type='string')
+        def schema():
+            required('accommodation.ratings[].aspect', type='string')
         
         document = {
             'accommodation': {
@@ -284,8 +284,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_rejects_invalid_objects_in_a_list(self):
-        def schema(validator):
-            validator.required('accommodation.ratings[].score', type='number', max=5)
+        def schema():
+            required('accommodation.ratings[].score', type='number', max=5)
         
         document = {
             'accommodation': {
@@ -311,8 +311,8 @@ class TestValidator:
         assert message.expected == 5
     
     def test_it_rejects_object_with_missing_fields_in_a_list(self):
-        def schema(validator):
-            validator.required('accommodation.ratings[].score', type='number')
+        def schema():
+            required('accommodation.ratings[].score', type='number')
         
         document = {
             'accommodation': {
@@ -327,8 +327,8 @@ class TestValidator:
         assert message.field == 'accommodation.ratings[0].score'
     
     def test_it_rejects_multiple_objects_with_missing_fields_in_a_list(self):
-        def schema(validator):
-            validator.required('accommodation.ratings[].score', type='number')
+        def schema():
+            required('accommodation.ratings[].score', type='number')
         
         document = {
             'accommodation': {
@@ -340,8 +340,8 @@ class TestValidator:
         assert len(messages) == 2
     
     def test_it_rejects_non_objects_in_a_list(self):
-        def schema(validator):
-            validator.required('ratings[].aspect', type='string')
+        def schema():
+            required('ratings[].aspect', type='string')
         
         document = {
             'ratings': [{ 'aspect': 'good' }, -1]
@@ -355,8 +355,8 @@ class TestValidator:
         assert message.expected == 'object'
     
     def test_it_accepts_a_list_of_scalars_inside_a_list_of_objects(self):
-        def schema(validator):
-            validator.required('facilities[].subtype[]', type='string')
+        def schema():
+            required('facilities[].subtype[]', type='string')
         
         document = {
             'facilities': [{
@@ -368,8 +368,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_accepts_a_list_of_objects_inside_a_list_objects(self):
-        def schema(validator):
-            validator.required('rooms[].facilities[].type')
+        def schema():
+            required('rooms[].facilities[].type')
         
         document = {
             'rooms': [{
@@ -383,8 +383,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_missing_nested_list(self):
-        def schema(validator):
-            validator.required('facilities[].subtype[]', type='string')
+        def schema():
+            required('facilities[].subtype[]', type='string')
         
         document = {
             'facilities': [{
@@ -400,8 +400,8 @@ class TestValidator:
         assert message.expected == 'list'
     
     def test_it_reports_invalid_value_in_nested_list(self):
-        def schema(validator):
-            validator.required('rooms[].facilities[].type', 'string')
+        def schema():
+            required('rooms[].facilities[].type', 'string')
         
         document = {
             'rooms': [{
@@ -421,8 +421,8 @@ class TestValidator:
         assert message.expected == 'string'
     
     def test_it_accepts_a_nested_list_of_scalars(self):
-        def schema(validator):
-            validator.required('matrix[][]', 'number')
+        def schema():
+            required('matrix[][]', 'number')
         
         document = {
             'matrix': [
@@ -435,8 +435,8 @@ class TestValidator:
         assert messages == []
     
     def test_it_reports_an_extra_nested_field(self):
-        def schema(validator):
-            validator.optional('accommodation')
+        def schema():
+            optional('accommodation')
         
         document = {
             'accommodation': {
@@ -451,8 +451,8 @@ class TestValidator:
         assert message.field == 'accommodation.name'
 
     def test_it_reports_an_extra_field_nested_in_a_list(self):
-        def schema(validator):
-            validator.optional('ratings[].aspect')
+        def schema():
+            optional('ratings[].aspect')
         
         document = {
             'ratings': [{
@@ -470,8 +470,8 @@ class TestValidator:
         assert message.field == 'ratings[1].score'
     
     def test_it_adds_specified_values_to_missing_field_message(self):
-        def schema(validator):
-            validator.required('metadata')
+        def schema():
+            required('metadata')
         
         document = {}
         message_values = {
@@ -486,9 +486,9 @@ class TestValidator:
         assert message.key == 'accommodations.json'
     
     def test_it_adds_specified_values_to_invalid_type_message(self):
-        def schema(validator):
-            validator.required('metadata', type='object')
-            validator.optional('accommodation', type='object')
+        def schema():
+            required('metadata', type='object')
+            optional('accommodation', type='object')
         
         document = {
             'metadata': True,
@@ -509,9 +509,9 @@ class TestValidator:
         assert message.key == 'accommodations.json'
     
     def test_it_adds_specified_values_to_invalid_parent_message(self):
-        def schema(validator):
-            validator.required('metadata.accommodation_id', type='object')
-            validator.optional('accommodation.name', type='object')
+        def schema():
+            required('metadata.accommodation_id', type='object')
+            optional('accommodation.name', type='object')
         
         document = {
             'metadata': True,
@@ -532,7 +532,7 @@ class TestValidator:
         assert message.key == 'accommodations.json'
     
     def test_it_adds_specified_values_to_extra_field_message(self):
-        def schema(validator):
+        def schema():
             pass
         
         document = {
@@ -550,7 +550,7 @@ class TestValidator:
         assert message.key == 'accommodations.json'
     
     def test_it_makes_required_available_to_schema_outside_of_validator_instance(self):
-        def schema(validator):
+        def schema():
             required('metadata')
             required('accommodation')
         
@@ -565,7 +565,7 @@ class TestValidator:
         assert message.field == 'accommodation'
     
     def test_it_makes_optional_available_to_schema_outside_of_validator_instance(self):
-        def schema(validator):
+        def schema():
             optional('metadata', type='object')
             optional('accommodation')
         
@@ -580,7 +580,7 @@ class TestValidator:
         assert message.field == 'metadata'
     
     def test_it_makes_ignore_extra_fields_available_to_schema_outside_of_validator_instance(self):
-        def schema(validator):
+        def schema():
             ignore_extra_fields()
         
         document = {
@@ -600,5 +600,5 @@ class TestValidator:
         assert messages == []
 
 
-def empty_schema(validator):
+def empty_schema():
     pass
