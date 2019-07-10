@@ -120,7 +120,8 @@ class Validator:
                 if field_name not in self._validated_fields:
                     self.messages.append(Message(
                         type='extra_field',
-                        field=f'{indexed_prefix}{key}'
+                        field=f'{indexed_prefix}{key}',
+                        **self._message_values
                     ))
                 else:
                     self._report_extra_fields(object[key], f'{prefix}{key}.', f'{indexed_prefix}{key}.')

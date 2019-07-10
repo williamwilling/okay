@@ -531,6 +531,24 @@ class TestValidator:
         assert message.source == 's3'
         assert message.key == 'accommodations.json'
     
+    def test_it_adds_specified_values_to_extra_field_message(self):
+        def schema(validator):
+            pass
+        
+        document = {
+            'review': {}
+        }
+        message_values = {
+            'source': 's3',
+            'key': 'accommodations.json'
+        }
+        messages = validate(schema, document, message_values)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.source == 's3'
+        assert message.key == 'accommodations.json'
+    
     def test_it_makes_required_available_to_schema_outside_of_validator_instance(self):
         def schema(validator):
             required('metadata')
