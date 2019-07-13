@@ -1,3 +1,5 @@
+import pytest
+from okay import SchemaError
 from okay.type_validators import validate_custom
 from okay.message import Message
 
@@ -24,3 +26,23 @@ class TestCustomValidator:
 
         assert message.type == 'dummy'
         assert message.field == 'dummy'
+    
+    def test_it_raises_when_validation_function_returns_invalid_value(self):
+        def validator(field, value):
+            return 'not good'
+        
+        with pytest.raises(SchemaError):
+            validate_custom(None, None, validator=validator)
+    
+    def test_it_raises_when_validation_function_is_not_callable(self):
+        with pytest.raises(SchemaError):
+            validate_custom(None, None, 'validator')
+    
+    def test_it_raises_when_validation_function_contains_a_bug(self):
+        def validator(field, value):
+            bug = [ 1, 2, 3 ][4]
+        
+        with pytest.raises(SchemaError) as exception_info:
+            validate_custom(None, None, validator)
+        
+        assert type(exception_info.value.__cause__) == IndexError

@@ -35,6 +35,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [No Schema-class](#no-schema-class)
 * [Library name](#library-name)
 * [Parameterless schema functions](#parameterless-schema-functions)
+* [SchemaError)](#schemaerror)
 
 ## Background
 
@@ -755,3 +756,9 @@ Until now, I just called the library _validator_. I don't like the name much. No
 ## Parameterless schema functions
 
 With the introduction of the [global validation functions](#no-schema-class) it's no longer necessary to pass a `Validator` object to a schema function. Originally, I wanted to keep both options available – so you could write either `def schema()` or `def schema(validator)` – but no one will use the latter, so why bother? Also, if it turns out that it is useful to have the document available in the schema function, the most natural thing to do is pass it as a parameter, but that's not possible if that parameter already contains the `Validator` object. Instead of changing the meaning of the parameter later on – which would be a breaking change – I decided to remove the parameter for now and keep the option open to add the document as optional parameter later.
+
+## SchemaError
+
+I decided to create a dedicated exception for reporting schema errors. A custom validator must return either a `Message` instance or `None`. If it doesn't, it contains a bug and I want to raise an exception for that. `TypeError` seemed the most fitting. I wrote a unit test for it, ran it, and it passed; that's not supposed to happen. Turns out, the validator chokes on the invalid return value from the custom validator – not surprisingly – and by coincidence it does so in a way that raises a `TypeError`. That's not good enough, though. I want to raise an exception on purpose, right where it happens, with a clear error message. I don't want a change in the validation error to lead to a different exception for the same problem. So, I started thinking: what if I create a separate exception for this?
+
+It actually makes quite a bit of sense, because it allows you to easily report errors the schema writer made. It creates a clear distinction between problems with the document (validation message), problems with the schema (`SchemaError`), and problems with the code (any other type of exception). I guess this also means I need to get more strict with checking the schema for problems, like passing a validation parameter of the wrong type, or making a list optional and its elements required.
