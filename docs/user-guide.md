@@ -6,7 +6,7 @@
   * [Nested fields](#nested-fields)
   * [Lists](#lists)
   * [Unspecified fields](#unspecified-fields)
-  * [Custom validation functions](#custom-validation-functions)
+  * [Custom validators](#custom-validators)
   * [Using regular code](#using-regular-code)
   * [Passing parameters](#passing-parameters)
 * [Running the validator](#running-the-validator)
@@ -239,9 +239,9 @@ def book_schema():
     required('authors[]', type='object')
 ```
 
-### Custom validation functions
+### Custom validators
 
-If you need validate a field in a way that isn't covered by the types Okay provides, you can write a custom validation function. A custom validation function receives the field's name and value as parameters. If validation fails, you return a `Message`-object to indicate what went wrong. If validation succeeds, you don't return anything.
+If you need validate a field in a way that isn't covered by the types Okay provides, you can write a custom validator. A custom validator is a function that receives the field's name and value as parameters. If validation fails, you return a `Message`-object to indicate what went wrong. If validation succeeds, you don't return anything.
 
 ```python
 from okay import Message
@@ -260,7 +260,7 @@ def book_schema():
     optional('summary', type='custom', validator=is_capitalized)
 ```
 
-You can also use custom validation functions to validate fields that depend on each other, as long as they aren't top-level fields.
+You can also use custom validators to validate fields that depend on each other, as long as they aren't top-level fields.
 
 ```python
 from okay import Message
@@ -281,7 +281,7 @@ def schema():
     required('range.max', type='int')
 ```
 
-Note in the custom validation function above that it doesn't return a message when `range` is not a field or when the fields `min` and `max` are missing. It only validates the range if it is actually there. This is a good approach in general, because it keeps your options open when writing your schema. In this example, you now have the option to allow an open-ended range, i.e. a range with only a minimum or only a maximum. If you don't want to allow an open-ended range, you simply make `min` and `max` required, as shown above, but `valid_range` doesn't have to force this on you.
+Note in the custom validator above that it doesn't return a message when `range` is not a field or when the fields `min` and `max` are missing. It only validates the range if it is actually there. This is a good approach in general, because it keeps your options open when writing your schema. In this example, you now have the option to allow an open-ended range, i.e. a range with only a minimum or only a maximum. If you don't want to allow an open-ended range, you simply make `min` and `max` required, as shown above, but `valid_range` doesn't have to force this on you.
 
 ### Using regular code
 
@@ -440,7 +440,7 @@ Sample output:
 
 If the file (or whatever you use to store your documents) contains a large number of documents, it might be unfeasible to load the entire file into memory. In that case, you need to stream documents in, so you can process the file in chunks. Exactly how to do that depends on the file format. For line-based formats like CSV and JSON Lines, you can simply read one line at a time. For nested formats like XML and YAML, or binary formats like Avro or Protobuf you need a parser that can read documents one by one.
 
-You will also want to implement robust error handling. If one of the lines in your CSV file is malformed, or if you have a bug in your custom validation function, you'll probably get an exception, which stops all validation. Instead of fixing the problem and rerunning the validator on all that data you already processed, you're probably better off catching the exception and validating as many documents as you can.
+You will also want to implement robust error handling. If one of the lines in your CSV file is malformed, or if you have a bug in your [custom validator](#custom-validators), you'll probably get an exception, which stops all validation. Instead of fixing the problem and rerunning the validator on all that data you already processed, you're probably better off catching the exception and validating as many documents as you can.
 
 The following example reads documents from a JSON Lines file one by one and tries to keep going even if something goes wrong.
 
@@ -487,4 +487,4 @@ Validation messages aren't returned as human-readable strings. Instead, they're 
 
 A validation message always has a `type` property that indicates why validation failed. It usually also has a `field` property that tells you the name of the field that didn't pass validation. You can create messages without a `field`, though, in case validation of the entire document fails, like in the [example above](#dealing-with-large-files). Whenever possible, a validation message will include an `expected` property to let you know what data in the document should've been. For example, if a field's type is invalid, `expected` contains the type the field should've had, and if a number field's value is too large, `expected` contains the maximum value allowed.
 
-When you return a `Message` object from a [custom validation function](#custom-validation-functions), you can add any properties you like, but it's probably useful to use the ones described above whenever possible. It will make formatting validation messages much easier. Also, if you [add context information to your validation messages](#identifying-documents), you will have to change the code that formats the messages accordingly.
+When you return a `Message` object from a [custom validator](#custom-validators), you can add any properties you like, but it's probably useful to use the ones described above whenever possible. It will make formatting validation messages much easier. Also, if you [add context information to your validation messages](#identifying-documents), you will have to change the code that formats the messages accordingly.
