@@ -1,6 +1,7 @@
 from collections import namedtuple
 from . import type_validators
 from .message import Message
+from .schema_error import SchemaError
 
 Field = namedtuple('Field', 'name value')
 
@@ -101,7 +102,10 @@ class Validator:
             return
         
         validator_name = f'validate_{type}'
-        type_validator = getattr(type_validators, validator_name)
+        try:
+            type_validator = getattr(type_validators, validator_name)
+        except AttributeError:
+            raise SchemaError(f"Type `{type}` specified for field `{field}` is invalid.")
         
         message = type_validator(field.name, field.value, **kwargs)
         if not message is None:

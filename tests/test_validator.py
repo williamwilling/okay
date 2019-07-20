@@ -1,5 +1,5 @@
 import pytest
-from okay import validate
+from okay import validate, SchemaError
 from okay.schema import *
 
 class TestValidator:
@@ -598,6 +598,16 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert messages == []
+
+    def test_it_raises_when_type_is_invalid(self):
+        def schema():
+            required('metadata', type='unknown')
+        
+        document = {
+            'metadata': {}
+        }
+        with pytest.raises(SchemaError):
+            validate(schema, document)
 
 
 def empty_schema():
