@@ -10,6 +10,7 @@
   * [Using regular code](#using-regular-code)
   * [Passing parameters](#passing-parameters)
 * [Running the validator](#running-the-validator)
+  * [Handling errors](#handling-errors)
   * [Loading documents](#loading-documents)
   * [Identifying documents](#identifying-documents)
   * [Dealing with large files](#dealing-with-large-files)
@@ -88,7 +89,7 @@ def book_schema():
     optional('page_count', type='int', min=1)
 ```
 
-You can find a [full list of available types](docs/reference.md#types) in the Reference Guide.
+You can find a [full list of available types](reference.md#types) in the Reference Manual.
 
 ### Nested fields
 
@@ -156,6 +157,18 @@ def book_schema():
 In this example, `genres` is an optional list of strings and `authors` is a required list of authors, where each author has an optional first name and a required last name. `genres` can be an empty list, but `authors` must have at least one element.
 
 There's an oddity with validation rules for list elements: `optional` and `required` don't apply to the list elements. Instead they apply to the list. In other words, `optional('genres[]', type='object')` automatically makes the field `genres` an optional list, so the line `optional('genres', type='list')` is superfluous. You only need to add a validation rule for the list itself if you want to validate more than just its type. In the example above, we need to keep the line `required('authors', type='list', min=1)` to ensure that the list has at least one element.
+
+Also, make sure you don't use `optional()` for the list and `required()` for the elements or vice versa. You would effectively be saying that the list is both optional and required and that results in a [`SchemaError`](reference.md#schemaerror).
+
+```python
+from okay.schema import *
+
+def book_schema():
+    optional('genres', type='list')
+    required('genres[]', type='string')     # error: genres is already optional
+    required('authors', type='list', min=1)
+    optional('authors[]', type='object')    # error: authors is already required
+```
 
 ### Unspecified fields
 
@@ -345,7 +358,54 @@ book_schema = create_book_schema(strict=True)
 
 ## Running the validator
 
-You validate a document by calling `validate()` and passing it a schema and a document. The result is a list of validation messages. This isn't all that hard to wrap you head around, but when it comes to writing the main loop of your validator, the devil is in the details.
+You validate a document by calling `validate()` and passing it a schema and a document. The result is a list of validation messages. This isn't all that hard to wrap your head around, but when it comes to writing the main loop of your validator, the devil is in the details.
+
+### Handling errors
+
+If `validate()` detects something wrong with your schema, it raises a [`SchemaError`](reference.md#schemaerror).
+
+```python
+import logging
+from okay import validate, SchemaError
+from okay.schema import *
+
+def schema():
+    required('page_count')
+    optional('page_count', type='int')  # previous line already made page_count required
+
+try:
+    document = {}
+    validation_messages = validate(schema, document)
+    for message in validation_messages:
+        print(message.__dict__)
+except SchemaError as e:
+    logging.exception('The schema is invalid.')
+```
+
+If your schema, or a custom validator run by the schema, raises an exception, `validate()` will catch the exception and wrap it in a `SchemaError`. You can access the original exception with the `__cause__` property.
+
+```python
+import logging
+from okay import validate, SchemaError
+from okay.schema import *
+
+def schema():
+    raise RuntimeError()
+
+try:
+    document = {}
+    validation_messages = validate(schema, document)
+    for message in validation_messages:
+        print(message.__dict__)
+except SchemaError as e:
+    if e.__cause__:
+        exception_name = type(e.__cause__).__name__
+        logging.exception(f"The schema raised an exception: {exception_name}.")
+    else:
+        logging.exception('The schema is invalid.')
+```
+
+Note that `logging.exception()` logs the stack trace, including the original exception. So, if all you need is to log the exception, you don't even need to check `__cause__`.
 
 ### Loading documents
 
@@ -442,28 +502,37 @@ If the file (or whatever you use to store your documents) contains a large numbe
 
 You will also want to implement robust error handling. If one of the lines in your CSV file is malformed, or if you have a bug in your [custom validator](#custom-validators), you'll probably get an exception, which stops all validation. Instead of fixing the problem and rerunning the validator on all that data you already processed, you're probably better off catching the exception and validating as many documents as you can.
 
-The following example reads documents from a JSON Lines file one by one and tries to keep going even if something goes wrong.
+You also get an exception if there is a problem with your schema. In that case, it's a bit harder to decide what to do. On the one hand, if there's a bug in the schema for one document, there will be a bug in the schema for the next document as well, so the best thing would be to log and abort. On the other hand, it might be that a custom validator doesn't take some edge case into consideration and most documents will validate just fine, so it's best to log and continue.
+
+The following example reads documents from a JSON Lines file one by one and tries to keep going even if something goes wrong. If the schema has a problem, this example uses a simple heuristic to determine whether it should abort.
 
 ```python
 import json
 import logging
-from okay import validate, Message
+from okay import validate, Message, SchemaError
 from okay.schema import *
 
 def book_schema():
-    def faulty_validator(field, value):
-        return field[value]     # this will raise an exception
+    def capitalized(field, value):
+        if not value[0].isupper():      # this may raise an exception
+            return Message(
+                type='no_capital',
+                field=field
+            )
 
-    required('title', type='custom', validator=faulty_validator)
+    required('title', type='custom', validator=capitalized)
     required('author', type='string')
     optional('page_count', type='int', min=1)
 
+schema_failure_heuristic = 0
 with open('books.json') as file:
     for i, line in enumerate(file):
+        validation_messages = []
         try:
             document = json.loads(line)
             message_values = { 'document_number': i }
             validation_messages = validate(book_schema, document, message_values)
+            schema_failure_heuristic += 1
         except json.JSONDecodeError as e:
             # Treat invalid JSON as a validation error.
             validation_messages = [Message(
@@ -472,9 +541,16 @@ with open('books.json') as file:
                 message=e.msg,
                 position=e.pos
             )]
+            schema_failure_heuristic += 1
+        except SchemaError:
+            logging.exception('The schema is invalid.')
+
+            # Abort if the schema caused problems in more than half of the cases.
+            schema_failure_heuristic -= 1
+            if schema_failure_heuristic < 0:
+                break
         except:
             # Don't know what went wrong. Log and continue.
-            validation_messages = []
             logging.exception('An unexpected exception occurred during validation.')
 
         for message in validation_messages:

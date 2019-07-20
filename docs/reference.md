@@ -1,4 +1,4 @@
-# Reference
+# Reference Manual
 
 * [Functions](#functions)
   * [ignore_extra_fields](#ignore-extra-fields)
@@ -39,7 +39,6 @@ You use `optional()` inside a [schema definition](user-guide.md#writing-a-schema
 
 `optional()` has no return value.
 
-
 Parameter | Description
 ----------|------------
 `field`     | Required. The name of the field you want to validate. You can specify [nested fields](user-guide.md#nested-fields) using the `.` separator, e.g. `author.last_name`. You can specify [list elements](user-guide.md#lists) using the `[]` suffix, e.g. `genres[]`.
@@ -52,7 +51,6 @@ Depending on the [type](#type-validators) you specify, you can pass extra named 
 You use `required()` inside a [schema definition](user-guide.md#writing-a-schema) to indicate that a field must be in a document.
 
 `required()` has no return value.
-
 
 Parameter | Description
 ----------|------------
@@ -89,7 +87,7 @@ Property | Description
 
 ### SchemaError
 
-The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](#user-guide.md#custom-validators), or an invalid [validation type](#type-validators).
+The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](#user-guide.md#custom-validators), or an invalid [validation type](#type-validators). If `SchemaError` was raised in response to another exception, that other exception is available from the `__cause__` property of the `SchemaError` instance.
 
 ## Type validators
 
