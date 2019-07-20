@@ -652,6 +652,31 @@ class TestValidator:
         }
         with pytest.raises(SchemaError):
             validate(schema, document)
+    
+    def test_it_raises_schemaerror_when_schema_raises(self):
+        def schema():
+            raise RuntimeError()
+        
+        document = {}
+        with pytest.raises(SchemaError) as exception_info:
+            validate(schema, document)
+        
+        assert type(exception_info.value.__cause__) == RuntimeError
+    
+    def test_it_doesnt_wrap_schemaerror(self):
+        def schema():
+            def validator(field, name):
+                raise RuntimeError()
+            
+            optional('accommodation', type='custom', validator=validator)
+        
+        document = {
+            'accommodation': {}
+        }
+        with pytest.raises(SchemaError) as exception_info:
+            validate(schema, document)
+        
+        assert type(exception_info.value.__cause__) == RuntimeError
 
 
 def empty_schema():

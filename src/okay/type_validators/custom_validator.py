@@ -8,7 +8,7 @@ def validate_custom(field, value, validator):
     try:
         message = validator(field, value)
     except Exception as e:
-        raise SchemaError(f"Custom validation function `{validator.__name__}()` specified for field '{field}' raised exception {type(e).__name__}.") from e
+        raise SchemaError(f"Custom validation function `{validator.__name__}()` specified for field '{field}' raised exception `{type(e).__name__}`.") from e
 
     if not (message is None or isinstance(message, Message)):
         raise SchemaError(f"Custom validation function `{validator.__name__}()` specified for field '{field}' must return a `Message` object, but it returned a `{type(message).__name__}` object instead.")
