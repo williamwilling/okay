@@ -608,6 +608,50 @@ class TestValidator:
         }
         with pytest.raises(SchemaError):
             validate(schema, document)
+    
+    def test_it_raises_when_optional_field_is_already_required(self):
+        def schema():
+            required('metadata', type='object')
+            optional('metadata', type='object')
+        
+        document = {
+            'metadata': {}
+        }
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_raises_when_required_field_is_already_optional(self):
+        def schema():
+            optional('accommodation', type='object')
+            required('accommodation', type='object')
+        
+        document = {
+            'accommodation': {}
+        }
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_raises_when_list_is_optional_and_elements_are_required(self):
+        def schema():
+            optional('scores', type='list')
+            required('scores[]')
+        
+        document = {
+            'scores': []
+        }
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_raises_when_list_is_required_and_elements_are_optional(self):
+        def schema():
+            required('scores', type='list')
+            optional('scores[]')
+        
+        document = {
+            'scores': []
+        }
+        with pytest.raises(SchemaError):
+            validate(schema, document)
 
 
 def empty_schema():

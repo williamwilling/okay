@@ -19,15 +19,23 @@ def validate(schema, document, message_values=None):
 class Validator:
     def __init__(self):
         self._validated_fields = set()
+        self._required_fields = set()
+        self._optional_fields = set()
         self.messages = []
     
     def _reset(self, document, message_values):
         self._document = document
         self._validated_fields.clear()
+        self._required_fields.clear()
+        self._optional_fields.clear()
         self._message_values = message_values or {}
         self.messages.clear()
     
     def required(self, field_name, type=None, **kwargs):
+        if field_name.strip('[]') in self._optional_fields:
+            raise SchemaError(f"Required field `{field_name}` has already been specified as optional.")
+        self._required_fields.add(field_name.strip('[]'))
+
         for field in self._iterate_fields(field_name):
             if isinstance(field, Message):
                 message = field
@@ -38,6 +46,10 @@ class Validator:
                 self._validate(field, type, **kwargs)
     
     def optional(self, field_name, type=None, **kwargs):
+        if field_name.strip('[]') in self._required_fields:
+            raise SchemaError(f"Optional field `{field_name}` has already been specified as required.")
+        self._optional_fields.add(field_name.strip('[]'))
+
         for field in self._iterate_fields(field_name):
             if isinstance(field, Message):
                 message = field
