@@ -5,5 +5,5 @@ def validate_bool(field, value):
         return Message(
             type='invalid_type',
             field=field,
-            expected='boolean'
+            expected='bool'
         )
