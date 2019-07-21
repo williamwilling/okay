@@ -2,14 +2,8 @@
 
 Okay is a library for validating Python dictionaries.
 
-## Dependencies
+## Documentation
 
-```
-pip install -r requirements.txt
-```
-
-## Unit tests
-
-```
-pytest
-```
+* [User Guide](docs/user-guide.md)
+* [Reference Manual](docs/reference.md)
+* [Contributor Guide](docs/contributing.md)
