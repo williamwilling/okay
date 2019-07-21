@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='trv-okay',
-    version='0.0.1',
+    version='1.0.0',
     description='A library for validating Python dictionaries.',
     long_description=long_description,
     long_description_content_type='text/markdown',
