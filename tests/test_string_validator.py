@@ -56,3 +56,20 @@ class TestStringValidator:
             'regex': r'\+[\d\(\)\+\- ]+',
             'options': ['112']
         }
+    
+    def test_it_accepts_a_string_in_a_list_of_case_insensitive_options(self):
+        message = validate_string('unit', 'sqM', options=['SQm', 'SQft'], case_sensitive=False)
+
+        assert message is None
+    
+    def test_it_reports_a_string_in_a_list_of_case_sensitive_options(self):
+        message = validate_string('unit', 'sqM', options=['SQm', 'SQft'], case_sensitive=True)
+
+        assert message.type == 'invalid_option'
+        assert message.field == 'unit'
+        assert message.expected == ['SQm', 'SQft']
+    
+    def test_it_accepts_a_string_in_a_list_of_case_insensitive_options_if_regex_doesnt_match(self):
+        message = validate_string('unit', 'sqM', regex=r'sq[a-z]+', options=['SQm', 'SQft'], case_sensitive=False)
+
+        assert message is None

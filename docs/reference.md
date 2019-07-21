@@ -142,6 +142,7 @@ Parameter | Description
 ----------|------------
 `regex`   | The regular expression pattern that the value must match.
 `options` | A list of allowed values. The value must exactly match one of the options.
+`case_sensitive` | `True` if options are case sensitive, `False` otherwise. Default is `True`. Note that `case_sensitive` doesn't apply to regular expressions. If you want your regular expression to be case insensitive, add the [inline flag](https://docs.python.org/3/library/re.html#index-15) `(?i)` to your pattern.
 
 If you provide both `regex` and `options`, the value must match either. In other words, `options` are considered exceptions to the `regex`. If the value doesn't match `regex` and is not in `options`, the resulting validation message is [`no_match`](#no_match).
 

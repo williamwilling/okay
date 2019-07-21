@@ -10,9 +10,15 @@ def validate_string(field, value, **kwargs):
         )
     pattern = kwargs.get('regex')
     options = kwargs.get('options')
+    case_sensitive = kwargs.get('case_sensitive', True)
+
+    if case_sensitive:
+        in_options = options and value in options
+    else:
+        in_options = options and value.lower() in [ option.lower() for option in options ]
 
     if pattern and options:
-        if value in options or re.fullmatch(pattern, value):
+        if in_options or re.fullmatch(pattern, value):
             return
         else:
             return Message(
@@ -31,7 +37,7 @@ def validate_string(field, value, **kwargs):
             expected=pattern
         )
     
-    if options and value not in options:
+    if options and not in_options:
         return Message(
             type='invalid_option',
             field=field,
