@@ -1,6 +1,7 @@
 # User Guide
 
 * [Introduction](#introduction)
+* [Installation](#installation)
 * [Writing a schema](#writing-a-schema)
   * [Validating types](#validating-types)
   * [Nested fields](#nested-fields)
@@ -48,6 +49,14 @@ Output:
 ```
 page_count:     number_too_small
 language:       extra_field
+```
+
+## Installation
+
+You can use pip to install the latest version of Okay directly from Github.
+
+```
+pip install git+https://github.com/trivago/okay@v1#egg=trv-okay
 ```
 
 ## Writing a schema
