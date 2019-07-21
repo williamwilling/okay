@@ -8,16 +8,29 @@ def validate_string(field, value, **kwargs):
             field=field,
             expected='string'
         )
-    
     pattern = kwargs.get('regex')
-    if pattern and re.fullmatch(pattern, value) is None:
-        return Message(
+    options = kwargs.get('options')
+
+    if pattern and options:
+        if value in options or re.fullmatch(pattern, value):
+            return
+        else:
+            return Message(
+                type='no_match',
+                field=field,
+                expected={
+                    'regex': pattern,
+                    'options': options
+                }
+            )
+
+    if pattern and not re.fullmatch(pattern, value):
+            return Message(
             type='no_match',
             field=field,
             expected=pattern
         )
     
-    options = kwargs.get('options')
     if options and value not in options:
         return Message(
             type='invalid_option',

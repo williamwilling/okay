@@ -143,6 +143,8 @@ Parameter | Description
 `regex`   | The regular expression pattern that the value must match.
 `options` | A list of allowed values. The value must exactly match one of the options.
 
+If you provide both `regex` and `options`, the value must match either. In other words, `options` are considered exceptions to the `regex`. If the value doesn't match `regex` and is not in `options`, the resulting validation message is [`no_match`](#no_match).
+
 ## Validation messages
 
 ### invalid_option
@@ -151,7 +153,7 @@ The field doesn't match any of the allowed options.
 
 Property   | Description
 -----------|------------
-`type`     | `number_too_small`
+`type`     | `invalid_option`
 `field`    | The name of the field that failed validation.
 `expected` | The list of acceptable options.
 
@@ -171,9 +173,18 @@ The field doesn't match the required regular expression.
 
 Property   | Description
 -----------|------------
-`type`     | `number_too_small`
+`type`     | `no_match`
 `field`    | The name of the field that failed validation.
 `expected` | The regular expression pattern the field should match.
+
+If you [provided both `regex` and `options`](#string) in your validation rule, the resulting message is slightly different.
+
+Property           | Description
+-------------------|------------
+`type`             | `no_match`
+`field`            | The name of the field that failed validation.
+`expected.regex`   | The regular expression pattern the field should match.
+`expected.options` | The list of acceptable exceptions.
 
 ### number_too_large
 
@@ -181,7 +192,7 @@ The field contains a number larger than the allowed maximum.
 
 Property   | Description
 -----------|------------
-`type`     | `number_too_small`
+`type`     | `number_too_large`
 `field`    | The name of the field that failed validation.
 `expected` | The maximum value allowed.
 
@@ -211,6 +222,6 @@ The list contains more elements than the allowed maximum.
 
 Property   | Description
 -----------|------------
-`type`     | `number_too_small`
+`type`     | `too_many_elements`
 `field`    | The name of the field that failed validation.
 `expected` | The maximum number of elements the list may have.
