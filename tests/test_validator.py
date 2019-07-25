@@ -107,7 +107,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_reports_if_parent_field_is_not_an_object(self):
+    def test_it_reports_if_parent_field_of_required_field_is_not_an_object(self):
         def schema():
             required('accommodation.name')
         
@@ -118,6 +118,42 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
+        assert message.expected == 'object'
+    
+    def test_it_reports_if_parent_field_of_optional_field_is_not_an_object(self):
+        def schema():
+            optional('accommodation.name')
+        
+        document = { 'accommodation': 'name' }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation'
+        assert message.expected == 'object'
+    
+    def test_it_reports_if_parent_field_of_optional_field_in_list_is_not_an_object(self):
+        def schema():
+            optional('accommodation.units[].geo.latitude')
+        
+        document = {
+            'accommodation': {
+                'units': [{
+                    'geo': {
+                        'latitude': 0
+                    }
+                }, {
+                    'geo': 0
+                }]
+            }
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation.units[1].geo'
         assert message.expected == 'object'
     
     def test_it_skips_nested_field_if_required_parent_is_missing(self):
@@ -132,7 +168,7 @@ class TestValidator:
         message = messages[0]
         assert message.field == 'accommodation'
     
-    def test_it_reports_a_parent_that_is_not_an_object(self):
+    def test_it_reports_a_grandparent_that_is_not_an_object(self):
         def schema():
             required('accommodation.geo.latitude')
         
@@ -338,6 +374,12 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert len(messages) == 2
+        message = messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation.ratings[0].score'
+        message = messages[1]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation.ratings[1].score'
     
     def test_it_rejects_non_objects_in_a_list(self):
         def schema():
@@ -468,6 +510,30 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'extra_field'
         assert message.field == 'ratings[1].score'
+    
+    def test_it_reports_multiple_extra_fields_nested_in_a_list(self):
+        def schema():
+            optional('ratings[].aspect')
+        
+        document = {
+            'ratings': [{
+                'aspect': 'staff'
+            }, {
+                'aspect': 'cleanliness',
+                'score': 3
+            }, {
+                'score': 5
+            }]
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 2
+        message = messages[0]
+        assert message.type == 'extra_field'
+        assert message.field == 'ratings[1].score'
+        message = messages[1]
+        assert message.type == 'extra_field'
+        assert message.field == 'ratings[2].score'
     
     def test_it_adds_specified_values_to_missing_field_message(self):
         def schema():
@@ -677,6 +743,18 @@ class TestValidator:
             validate(schema, document)
         
         assert type(exception_info.value.__cause__) == RuntimeError
+    
+    def test_it_reports_missing_top_level_list(self):
+        def schema():
+            required('ratings[]')
+        
+        document = {}
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'ratings'
 
 
 def empty_schema():
