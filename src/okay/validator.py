@@ -1,5 +1,6 @@
 from collections import namedtuple
 from . import type_validators
+from .index import Index
 from .message import Message
 from .schema_error import SchemaError
 
@@ -19,6 +20,9 @@ def validate(schema, document, message_values=None):
 
     _validator._report_extra_fields(document)    
 
+    message_values = message_values or {}
+    for message in _validator.messages:
+        message.add(**message_values)
     return _validator.messages
 
 
@@ -27,6 +31,7 @@ class Validator:
         self._validated_fields = set()
         self._required_fields = set()
         self._optional_fields = set()
+        self._index = Index()
         self.messages = []
     
     def _reset(self, document, message_values):
@@ -34,88 +39,54 @@ class Validator:
         self._validated_fields.clear()
         self._required_fields.clear()
         self._optional_fields.clear()
-        self._message_values = message_values or {}
+        self._index.clear()
+        self._ignore_extra_fields = False
         self.messages.clear()
     
     def required(self, field_name, type=None, **kwargs):
         if field_name.strip('[]') in self._optional_fields:
-            raise SchemaError(f"Required field `{field_name}` has already been specified as optional.")
-        self._required_fields.add(field_name.strip('[]'))
+            raise SchemaError('Required field ' + field_name + ' has already been specified as optional.')
+        else:
+            self._required_fields.add(field_name.strip('[]'))
 
-        for field in self._iterate_fields(field_name):
-            if isinstance(field, Message):
-                message = field
-                if not _is_parent_missing(message, field_name):
-                    message.add(**self._message_values)
-                    self.messages.append(message)
-            else:
-                self._validate(field, type, **kwargs)
+        index_entry = self._index.look_up(self._document, field_name)
+        
+        for name in index_entry.name_hierarchy:
+            self._validated_fields.add(name)
+
+        for field in index_entry.fields:
+            if field.type == 'message':
+                if field.message.type != 'missing_parent':
+                    self.messages.append(field.message)
+
+                continue
+
+        self._validate(field_name, index_entry.fields, type, **kwargs)
     
     def optional(self, field_name, type=None, **kwargs):
         if field_name.strip('[]') in self._required_fields:
-            raise SchemaError(f"Optional field `{field_name}` has already been specified as required.")
-        self._optional_fields.add(field_name.strip('[]'))
-
-        for field in self._iterate_fields(field_name):
-            if isinstance(field, Message):
-                message = field
-                if message.type != 'missing_field':
-                    message.add(**self._message_values)
-                    self.messages.append(message)
-            else:
-                self._validate(field, type, **kwargs)
-
-    def ignore_extra_fields(self):
-        for field_name in self._document.keys():
-            self._validated_fields.add(field_name)
-    
-    def _iterate_fields(self, field_name):
-        if field_name is None:
-            yield Field(None, self._document)
-            return
-        
-        if field_name.endswith('[]'):
-            yield from self._iterate_list(field_name)
-            return
-        
-        self._validated_fields.add(field_name)
-
-        parent_path, child_name = _split_field_name(field_name)
-        for parent in self._iterate_fields(parent_path):
-            if isinstance(parent, Message):
-                yield parent
-                continue
-            elif not isinstance(parent.value, (dict, list)):
-                yield Message(
-                    type='invalid_type',
-                    field=parent.name,
-                    expected='object'
-                )
-                continue
-
-            name = f'{parent.name}.{child_name}' if parent.name is not None else child_name
-            if not child_name in parent.value:
-                yield Message(
-                    type='missing_field',
-                    field=name
-                )
-                continue
-            
-            yield Field(name, parent.value[child_name])
-    
-    def _iterate_list(self, field_name):
-        field = next(self._iterate_fields(field_name[:-2]))
-        if not isinstance(field.value, list):
-            yield Message(
-                type='invalid_type',
-                field=field.name,
-                expected='list'
-            )
+            raise SchemaError('Optional field ' + field_name + ' has already been specified as required.')
         else:
-            for i, element in enumerate(field.value):
-                yield Field(f'{field.name}[{i}]', element)
+            self._optional_fields.add(field_name.strip('[]'))
+
+        index_entry = self._index.look_up(self._document, field_name)
+        
+        for name in index_entry.name_hierarchy:
+            self._validated_fields.add(name)
+
+        for field in index_entry.fields:
+            if field.type == 'message':
+                if field.message.type == 'invalid_type':
+                    self.messages.append(field.message)
+                
+                continue
+
+        self._validate(field_name, index_entry.fields, type, **kwargs)
     
-    def _validate(self, field, type, **kwargs):
+    def ignore_extra_fields(self):
+        self._ignore_extra_fields = True
+    
+    def _validate(self, field_name, fields, type, **kwargs):
         if type is None:
             return
         
@@ -123,38 +94,33 @@ class Validator:
         try:
             type_validator = getattr(type_validators, validator_name)
         except AttributeError:
-            raise SchemaError(f"Type `{type}` specified for field `{field}` is invalid.")
+            raise SchemaError(f"Type `{type}` specified for field `{field_name}` is invalid.")
         
-        message = type_validator(field.name, field.value, **kwargs)
-        if not message is None:
-            message.add(**self._message_values)
-            self.messages.append(message)
+        for field in fields:
+            if field.type == 'message':
+                continue
+
+            message = type_validator(field.full_name, field.value, **kwargs)
+            if message is not None:
+                self.messages.append(message)
 
     def _report_extra_fields(self, object, prefix='', indexed_prefix=''):
+        if self._ignore_extra_fields:
+            return
+
         if isinstance(object, dict):
             for key in object.keys():
                 field_name = f'{prefix}{key}'
                 if field_name not in self._validated_fields:
                     self.messages.append(Message(
                         type='extra_field',
-                        field=f'{indexed_prefix}{key}',
-                        **self._message_values
+                        field=f'{indexed_prefix}{key}'
                     ))
                 else:
                     self._report_extra_fields(object[key], f'{prefix}{key}.', f'{indexed_prefix}{key}.')
         elif isinstance(object, list):
             for i, element in enumerate(object):
                 self._report_extra_fields(element, f'{prefix[:-1]}[].', f'{indexed_prefix[:-1]}[{i}].')
-
-
-def _split_field_name(field):
-    if not '.' in field:
-        return (None, field)
-
-    return field.rsplit('.', 1)
-
-def _is_parent_missing(message, field_name):
-    return message.type == 'missing_field' and message.field.count('.') < field_name.count('.')
 
 
 _validator = Validator()

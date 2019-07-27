@@ -86,7 +86,7 @@ class TestValidator:
 
         assert messages == []
 
-    def test_it_reports_a_missing_required_field(self):
+    def test_it_reports_a_missing_required_nested_field(self):
         def schema():
             required('accommodation.name')
         
@@ -97,6 +97,15 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'missing_field'
         assert message.field == 'accommodation.name'
+    
+    def test_it_accepts_a_missing_optional_nested_field(self):
+        def schema():
+            optional('accommodation.name')
+        
+        document = { 'accommodation': {} }
+        messages = validate(schema, document)
+
+        assert messages == []
     
     def test_it_accepts_a_missing_required_field_if_its_parent_is_missing(self):
         def schema():
