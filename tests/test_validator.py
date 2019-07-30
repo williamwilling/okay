@@ -120,6 +120,41 @@ class TestValidator:
         assert message.field == 'accommodation'
         assert message.expected == 'object'
     
+    def test_it_reports_if_field_with_list_as_parent_is_missing(self):
+        def schema():
+            required('accommodation.ratings[].score')
+        
+        document = {
+            'accommodation': {
+                'ratings': [ { 'score': 3.9 }, {} ]
+            }
+        }
+
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'missing_field'
+        assert message.field == 'accommodation.ratings[1].score'
+    
+    def test_it_reports_if_parent_field_inside_list_is_not_an_object(self):
+        def schema():
+            required('accommodation.ratings[].score')
+        
+        document = {
+            'accommodation': {
+                'ratings': [ { 'score': 3.9 }, 4.2 ]
+            }
+        }
+
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'accommodation.ratings[1]'
+        assert message.expected == 'object'
+    
     def test_it_skips_nested_field_if_required_parent_is_missing(self):
         def schema():
             required('accommodation')
@@ -131,19 +166,6 @@ class TestValidator:
         assert len(messages) == 1
         message = messages[0]
         assert message.field == 'accommodation'
-    
-    def test_it_reports_a_parent_that_is_not_an_object(self):
-        def schema():
-            required('accommodation.geo.latitude')
-        
-        document = { 'accommodation': True }
-        messages = validate(schema, document)
-
-        assert len(messages) == 1
-        message = messages[0]
-        assert message.type == 'invalid_type'
-        assert message.field == 'accommodation'
-        assert message.expected == 'object'
     
     def test_it_accepts_a_required_object_with_the_correct_type(self):
         def schema():
@@ -381,6 +403,21 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert messages == []
+
+    def test_it_reports_missing_list(self):
+        def schema():
+            required('scores[]')
+        
+        document = {
+            'scores': 5
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'invalid_type'
+        assert message.field == 'scores'
+        assert message.expected == 'list'
     
     def test_it_reports_missing_nested_list(self):
         def schema():
@@ -452,7 +489,7 @@ class TestValidator:
 
     def test_it_reports_an_extra_field_nested_in_a_list(self):
         def schema():
-            optional('ratings[].aspect')
+            required('ratings[].aspect')
         
         document = {
             'ratings': [{
