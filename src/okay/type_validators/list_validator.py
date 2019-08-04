@@ -1,25 +1,28 @@
 from ..message import Message
 
-def validate_list(field, value, **kwargs):
-    if not isinstance(value, list):
-        return Message(
-            type='invalid_type',
-            field=field,
-            expected='list'
-        )
-    
-    min = kwargs.get('min')
-    if min and len(value) < min:
-        return Message(
-            type='too_few_elements',
-            field=field,
-            expected=min
-        )
-    
-    max = kwargs.get('max')
-    if max and len(value) > max:
-        return Message(
-            type='too_many_elements',
-            field=field,
-            expected=max
-        )
+class ListValidator:
+    def __init__(self, field=None, min=None, max=None):
+        self._min = min
+        self._max = max
+
+    def __call__(self, field, value):
+        if not isinstance(value, list):
+            return Message(
+                type='invalid_type',
+                field=field,
+                expected='list'
+            )
+        
+        if self._min and len(value) < self._min:
+            return Message(
+                type='too_few_elements',
+                field=field,
+                expected=self._min
+            )
+        
+        if self._max and len(value) > self._max:
+            return Message(
+                type='too_many_elements',
+                field=field,
+                expected=self._max
+            )

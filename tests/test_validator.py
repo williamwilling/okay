@@ -1,5 +1,5 @@
 import pytest
-from okay import validate, SchemaError
+from okay import validate, SchemaError, Message
 from okay.schema import *
 
 class TestValidator:
@@ -714,6 +714,44 @@ class TestValidator:
             validate(schema, document)
         
         assert type(exception_info.value.__cause__) == RuntimeError
+    
+    def test_it_runs_multiple_type_validators_on_a_single_field(self):
+        def cost_validator(field, value):
+            if not isinstance(value, dict):
+                return
+
+            if value['is_free'] and value['price'] > 0:
+                return Message(
+                    type='free_and_price',
+                    field=field
+                )
+
+        def schema():
+            optional('accommodation.facilities[].cost', type='object')
+            optional('accommodation.facilities[].cost', type='custom', validator=cost_validator)
+            ignore_extra_fields()
+        
+        document = {
+            'accommodation': {
+                'facilities': [{
+                    'type': 'pool',
+                    'cost': 0
+                }, {
+                    'type': 'wifi',
+                    'cost': {
+                        'is_free': True,
+                        'price': 5,
+                        'currency': 'eur'
+                    }
+                }]
+            }
+        }
+
+        messages = validate(schema, document)
+
+        assert len(messages) == 2
+        assert messages[0].type == 'invalid_type'
+        assert messages[1].type == 'free_and_price'
 
 
 def empty_schema():

@@ -318,6 +318,8 @@ def schema():
     required('year', type='int', max=current_year)
 ```
 
+You should keep in mind, though, that Okay gives no guarantees about when or how often it runs the schema function. It may run the schema before processing any documents in order to do some precalculation, it may not. It may run the schema once per document, it may not. Make sure your schema function doesn't depend on when or how often it is called.
+
 ### Passing parameters
 
 Since you don't call your schema yourself – the validator does this for you – you can't pass parameters to your schema. However, if that's something you need, you have two options: either create a callable object, or create a closure.

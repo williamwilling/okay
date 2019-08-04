@@ -1,12 +1,16 @@
+from . import type_validators
 from .schema_error import SchemaError
+from collections import defaultdict
 
 class Schema:
     def __init__(self):
-        self.fields = {}
+        self.fields = defaultdict(FieldDefinition)
+        self.ignore_extra_fields = False
 
 class FieldDefinition:
-    def __init__(self, strictness):
-        self.strictness = strictness
+    def __init__(self):
+        self.strictness = 'unknown'
+        self.type_validators = []
 
 _active_schema = None
 
@@ -23,34 +27,63 @@ def required(field_name, type=None, **kwargs):
 def optional(field_name, type=None, **kwargs):
     _process(field_name, type, is_required=False, **kwargs)
 
+def ignore_extra_fields():
+    _active_schema.ignore_extra_fields = True
+
 def _process(field_name, type, is_required, **kwargs):
     fields = _active_schema.fields
 
+    is_implicit = False
     strictness = 'required' if is_required else 'optional' 
-    if type == 'list':
-        field_name += '[]'   
 
+    if type == 'list':
+        fields[field_name + '[]'].strictness = strictness
+    
     while True:
-        if field_name in fields:
-            if fields[field_name].strictness == 'required' and strictness == 'optional':
-                raise SchemaError(
-                    "Field '" + field_name + "' marked as optional, but it's already required.",
-                    type='already_required',
-                    field=field_name.strip('[]')
-                )
-            elif fields[field_name].strictness == 'optional' and strictness == 'required':
-                raise SchemaError(
-                    "Field '" + field_name + "' marked as required, but it's already optional.",
-                    type='already_optional',
-                    field=field_name.strip('[]')
-                )
-        else:
-            fields[field_name] = FieldDefinition(strictness)
+        field = fields[field_name]
+
+        if field.strictness == 'required' and strictness == 'optional':
+            raise SchemaError(
+                "Field '" + field_name + "' marked as optional, but it's already required.",
+                type='already_required',
+                field=field_name.strip('[]')
+            )
+        elif field.strictness == 'optional' and strictness == 'required':
+            raise SchemaError(
+                "Field '" + field_name + "' marked as required, but it's already optional.",
+                type='already_optional',
+                field=field_name.strip('[]')
+            )
+
+        type_validator = None
+        if type:
+            type_validator_builder = getattr(type_validators, type.capitalize() + 'Validator', None)
+            if type_validator_builder:
+                type_validator = type_validator_builder(field_name, **kwargs)
+            else:
+                try:
+                    type_validator = getattr(type_validators, 'validate_' + type)
+                except AttributeError:
+                    raise SchemaError(f"Type `{type}` specified for field `{field_name}` is invalid.")
+        
+        if type in [ 'object', 'list' ] and not is_implicit:
+            field.type_validators = [ type_validator for type_validator in field.type_validators if not type_validator.is_implicit ]
+        if type not in [ 'object', 'list' ] or len([ type_validator for type_validator in field.type_validators if not type_validator.is_implicit ]) == 0:
+            field.strictness = strictness if field.strictness == 'unknown' else field.strictness
+            if type_validator:
+                type_validator.is_implicit = is_implicit
+                field.type_validators.append(type_validator)
 
         if field_name.endswith('[]'):
             field_name = field_name[:-2]
+            type = 'list'
+            kwargs = {}
+            is_implicit = True
         elif '.' in field_name:
             field_name = field_name.rsplit('.', 1)[0]
             strictness = 'unknown'
+            type = 'object'
+            kwargs = {}
+            is_implicit = True
         else:
             break

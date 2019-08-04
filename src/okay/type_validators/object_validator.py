@@ -1,9 +1,13 @@
 from ..message import Message
 
-def validate_object(field, value):
-    if not isinstance(value, dict):
-        return Message(
-            type='invalid_type',
-            field=field,
-            expected='object'
-        )
+class ObjectValidator:
+    def __init__(self, field=None):
+        pass
+    
+    def __call__(self, field, value):
+        if not isinstance(value, dict):
+            return Message(
+                type='invalid_type',
+                field=field,
+                expected='object'
+            )

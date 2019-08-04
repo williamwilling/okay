@@ -67,7 +67,7 @@ Runs the validator on the specified document using the specified schema.
 
 Parameter | Description
 ----------|------------
-`schema`  | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts not parameters and return no value.
+`schema`  | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts not parameters and return no value. Okay gives no guarentees about when or how often this function will be called.
 `document` | Required. The document you want to validate. This must be a `dict`.
 `message_values` | Optional. A dictionary with key-value pairs that the validator will add to all `Message` objects it produces.
 

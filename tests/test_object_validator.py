@@ -1,7 +1,8 @@
-from okay.type_validators import validate_object
+from okay.type_validators import ObjectValidator
 
 class TestObjectValidator:
     def test_it_accepts_an_object(self):
+        validate_object = ObjectValidator()
         field = 'accommodation'
         value = {}
 
@@ -10,6 +11,7 @@ class TestObjectValidator:
         assert message is None
     
     def test_it_reports_a_non_object(self):
+        validate_object = ObjectValidator()
         field = 'accommodation'
         value = 12
 
