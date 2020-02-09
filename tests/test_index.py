@@ -333,7 +333,7 @@ class TestIndex:
     def test_it_stores_extra_nested_fields(self):
         document = {
             'accommodation': {
-                'name': 'Hearbreak Hotel'
+                'name': 'Heartbreak Hotel'
             }
         }
         schema_fields = [ 'accommodation' ]

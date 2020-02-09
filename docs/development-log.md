@@ -482,7 +482,7 @@ validator.required('rating.aspect', type='string')
 validator.required('rating.score', type='number', min=0, max=10)
 ```
 
-Then there's the question of which data types to support. Do we want a generic data type or will we make the distinction between integers and floating-point numbers? Should we have a separate data type for URLs or is it enough to have a string type with a regular expression? It's hard to get it right from the get-go, so it's useful if adding a new data type is relatively easy. When it comes to picking which data types to implement first, I think it makes sense to start with the generic and work towards the specific. For example, I'll implement the string type before the URL type, because you can validate URLs with the string type, but you can't validate strings with the URL type.
+Then there's the question of which data types to support. Do we want a generic number data type or will we make the distinction between integers and floating-point numbers? Should we have a separate data type for URLs or is it enough to have a string type with a regular expression? It's hard to get it right from the get-go, so it's useful if adding a new data type is relatively easy. When it comes to picking which data types to implement first, I think it makes sense to start with the generic and work towards the specific. For example, I'll implement the string type before the URL type, because you can validate URLs with the string type, but you can't validate strings with the URL type.
 
 ### Lists
 
@@ -558,7 +558,7 @@ validator.required('scores', type='list of number', min=1)
 validator.required('scores[]', type='number', min=0, max=10)
 ```
 
-It requires an extra line, but it's unambiguous and technically correct. It's also an extra reason to use square brackets. `scores[]` now means: an element in the list `score`. Interestingly enough, with this option, if you don't have validation parameters for the list, you don't need to validate the list itself. The following is perfectly clear.
+It requires an extra line, but it's unambiguous and technically correct. It's also an extra reason to use square brackets. `scores[]` now means: an element in the list `scores`. Interestingly enough, with this option, if you don't have validation parameters for the list, you don't need to validate the list itself. The following is perfectly clear.
 
 ```python
 validator.required('scores[]', type='number', min=0, max=10)
@@ -700,7 +700,7 @@ I'm wondering what to do about collecting documents. Suppose we want to output J
 
 [I mentioned this before](#connecting-sources-and-sinks): when data comes from multiple stores, e.g. multiple files in S3, does it also need to be written to multiple stores? I want to think this through some more.
 
-Let's first consider the possible scenarios. The simplest one is where you want to write all output to a single place, no matter where it came from. For example, all invalid documents should end up in a single file in S3. The next scenario is when there is a one-to-one mapping between the original store and the output location. For example, the input comes from several files in S3 and for each file there's an SQS queue that collects the invalid documents. The final scenario is where there isn't an obvious mapping, but you still want multiple output store, for example when you want to limit each output file to 500 documents.
+Let's first consider the possible scenarios. The simplest one is where you want to write all output to a single place, no matter where it came from. For example, all invalid documents should end up in a single file in S3. The next scenario is when there is a one-to-one mapping between the original store and the output location. For example, the input comes from several files in S3 and for each file there's an SQS queue that collects the invalid documents. The final scenario is where there isn't an obvious mapping, but you still want multiple output stores, for example when you want to limit each output file to 500 documents.
 
 Regardless of the scenario, you can solve the mapping in two place: inside the sink, or in the code that ties all the components (source, validator, sink) together. I'll call the second one a controller. I would prefer to solve the mapping in the sink, because it feels like it belongs there and it I think it would aid reusability, but I'm a bit worried that code for complex mapping scenarios becomes unwieldy. Let's try.
 
@@ -755,7 +755,7 @@ for document in reader.documents():
         invalid_documents_sink.add(document, output_name)
 ```
 
-So, what about mappings that aren't one-on-one? Can we solve that with a mapping function, too?
+So, what about mappings that aren't one-to-one? Can we solve that with a mapping function, too?
 
 ```python
 document_count = 0
@@ -799,13 +799,13 @@ It seems like Python's logging system gives us all we need, but I'm still not co
 
 ## Splitting the library
 
-Thinking about the combined problem of I/O and error reporting is blocking my progress, so it's time to simplify. What is I/O doing in a validator library anyway? I think I should split things up: one library for validation, one library for I/O; much cleaner. Ah, just thinking about it is a relieve!
+Thinking about the combined problem of I/O and error reporting is blocking my progress, so it's time to simplify. What is I/O doing in a validator library anyway? I think I should split things: one library for validation, one library for I/O; much cleaner. Ah, just thinking about it is a relieve!
 
 So, does that solve the error reporting issue? Not really, but let's only consider error reporting in the context of the validator proper. The validator returns validation messages. Done!
 
 But what if there's a document-related problem during I/O, for example, one line in a JSON Lines file is invalid? That would result in an exception, one that a controller should catch and add to the list of validation messages.
 
-Which brings up the issue of the controller. Where do we put that? It depends on both the validator and the I/O library. Should it be yet another library? That feels a bit superfluous, since the controller on its own can't do anything. Is it part of the validator library? Functionality-wise, that's where it fits best, but it would mean that the entire validation library now has a dependency on the I/O library. What if we just leave it out and make the user responsible for writing the controller? Downside of that the code is both repetitive and error-prone, so providing a default controller would be really beneficial.
+Which brings up the issue of the controller. Where do we put that? It depends on both the validator and the I/O library. Should it be yet another library? That feels a bit superfluous, since the controller on its own can't do anything. Is it part of the validator library? Functionality-wise, that's where it fits best, but it would mean that the entire validation library now has a dependency on the I/O library. What if we just leave it out and make the user responsible for writing the controller? Downside of that is that the code is both repetitive and error-prone, so providing a default controller would be really beneficial.
 
 What if we make the three parts (validator, I/O, controller) separate packages within the same library? The I/O library is valuable on its own and it would be strange if your project gains a validator you don't need just because you import an I/O library.
 
@@ -977,7 +977,7 @@ It's a bit iffy to have one class that can behave in two different ways, but it 
 
 My idea of [improving the syntax of a schema using a convenience class](#syntax-improvements) isn't going to work. I forgot that Python always requires explicit `self`. The upside of this is that it forced me to come up with another way to simplify the syntax and I can do that for the regular schema function by adding functions like `required()` and `optional()` to the schema functions globals. No more `Schema`-class necessary!
 
-The only downside seems to be that my code environment now flags the validator functions as undefined and either I'm stuck with squiggly lines all over my schema, or I have to disable the warning outright. I'll accept this downside, because the schema code is joyfully simple right now.‸
+The only downside seems to be that my code environment now flags the validator functions as undefined and either I'm stuck with squiggly lines all over my schema, or I have to disable the warning outright. I'll accept this downside, because the schema code is joyfully simple right now.
 
 No, I changed my mind: I can't live with the squiggly lines. Instead of adding the validator functions as globals to the schema function, I'll let the user import the functions into the global namespace, like so:
 
@@ -993,7 +993,7 @@ A schema definition should typically be in its own file, so the namespace pollut
 
 ## Library name
 
-Until now, I just called the library _validator_. I don't like the name much. Not only is it unimaginative, but it can be confusing in conversation: we someone say _validator_, do they mean the component or the library? So, I wanted to change it. I considered _validation_. It's slighlty better in conversation, because people would refer to the library as _the validation library_. It's still miserably unimaginative, though. After a short brainstorm, I decided on the name _Okay_. Memorable, fitting, and easy to use.
+Until now, I just called the library _validator_. I don't like the name much. Not only is it unimaginative, but it can be confusing in conversation: when someone says _validator_, do they mean the component or the library? So, I wanted to change it. I considered _validation_. It's slighlty better in conversation, because people would refer to the library as _the validation library_. It's still miserably unimaginative, though. After a short brainstorm, I decided on the name _Okay_. Memorable, fitting, and easy to use.
 
 ## Parameterless schema functions
 

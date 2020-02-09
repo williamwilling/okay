@@ -231,7 +231,7 @@ There are two situations where the validator creates implicit validation rules:
 * When you write a validation rule for a nested field.
 * When you write a validation rule for list elements.
 
-As soon as you specify a nested field, all its parent will automatically become optional objects. You can, of course, explicitly state that they should be required.
+As soon as you specify a nested field, all its parents will automatically become optional objects. You can, of course, explicitly state that they should be required.
 
 ```python
 def book_schema():
@@ -263,7 +263,7 @@ def book_schema():
 
 ### Custom validators
 
-If you need validate a field in a way that isn't covered by the types Okay provides, you can write a custom validator. A custom validator is a function that receives the field's name and value as parameters. If validation fails, you return a `Message`-object to indicate what went wrong. If validation succeeds, you don't return anything.
+If you need to validate a field in a way that isn't covered by the types Okay provides, you can write a custom validator. A custom validator is a function that receives the field's name and value as parameters. If validation fails, you return a `Message`-object to indicate what went wrong. If validation succeeds, you don't return anything.
 
 ```python
 from okay import Message

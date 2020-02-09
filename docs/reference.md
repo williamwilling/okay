@@ -67,7 +67,7 @@ Runs the validator on the specified document using the specified schema.
 
 Parameter | Description
 ----------|------------
-`schema`  | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts not parameters and return no value. Okay gives no guarentees about when or how often this function will be called.
+`schema`  | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts no parameters and returns no value. Okay gives no guarantees about when or how often this function will be called.
 `document` | Required. The document you want to validate. This must be a `dict`.
 `message_values` | Optional. A dictionary with key-value pairs that the validator will add to all `Message` objects it produces.
 
@@ -77,7 +77,7 @@ Parameter | Description
 
 Represents a validation message, giving information about a validation error.
 
-Each `Message` object has `type` property, but beyond that, the available properties depends on the [validation message type](#validation-messages). The table below lists properties used by Okay, but custom validation messages may contain any property.
+Each `Message` object has a `type` property, but beyond that, the available properties depend on the [validation message type](#validation-messages). The table below lists properties used by Okay, but custom validation messages may contain any property.
 
 Property | Description
 ---------|------------
@@ -101,7 +101,7 @@ The value must pass validation as specified by a custom validator. This is usefu
 
 Parameter | Description
 -----------|------------
-`validator` | Required. The function that will validate the value. It must accept two parameter: the field name and the field value. It must return `None` is validation succeeds or a [`Message`](#message) object if validation fails.
+`validator` | Required. The function that will validate the value. It must accept two parameter: the field name and the field value. It must return `None` if validation succeeds or a [`Message`](#message) object if validation fails.
 
 ### int
 
