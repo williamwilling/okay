@@ -42,6 +42,10 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Parameterless schema functions](#parameterless-schema-functions)
 * [SchemaError)](#schemaerror)
 * [Performance optimizations](#performance-optimizations)
+* [Nullable fields](#nullable-fields)
+  * [Default nullability](#default-nullability)
+  * [Specifying nullability](#specifying-nullability)
+  * [Reporting null-values](#reporting-null-values)
 
 ## Background
 
@@ -1075,3 +1079,172 @@ print(elapsed_time)
 I should develop a suite of performance tests that are clean enough to commit to the repository and that cover multiple use cases. For example, a schema with only top-level elements, a deeply-nested schema, a schema with a lot of lists, completely valid documents, completely invalid documents, broken schemas, etc. Not only would that be helpful for further performance optimizations, it would also make for a good regression test.
 
 At some point, I should read through the code again and document how it works. The code itself is reasonably clean, but the higher level concepts of the algorithm aren't immediately apparent. If only I had kept a development log...
+
+## Nullable fields
+
+I forgot to add support for nullable fields. What should the result of the following validation be?
+
+```python
+from okay import validate, Message
+from okay.schema import *
+
+def schema():
+    required('accommodation', type='object')
+    optional('metadata', type='object')
+
+document = {
+    'accommodation': None,
+    'metadata': None
+}
+
+messages = validate(schema, document)
+print(messages)
+```
+
+At the moment, validation fails for both fields, because `None` is not of type `object`. Don't let that fool you into thinking that fields are non-nullable by default, though. The following example is similar to the one above, but I removed the types from the schema.
+
+```python
+from okay import validate, Message
+from okay.schema import *
+
+def schema():
+    required('accommodation')
+    optional('metadata')
+
+document = {
+    'accommodation': None,
+    'metadata': None
+}
+
+messages = validate(schema, document)
+print(messages)
+```
+
+In this case, both fields pass validation, because there's no check done against the type of the value. This behavior is not by design; it's just a by-product of the current implementation. It's also not very intuitive. So, time to add proper support for nullable values. I need two questions answered: how do you indicate a field is nullable, and what should the default be?
+
+Before I get to answering those questions, a note about the term _nullable_. Python doesn't have null-values, it has None-values, so maybe we should talk about noneable fields. However, the validator is supposed to be document format agnostic (which is also the reason types don't conform to any specific language or format). `null` is far more common than `None`, so I prefer the term _nullable_ over _noneable_ or any other variant.
+
+### Default nullability
+
+The current defaults make no sense: fields are non-nullable if you specify a type, but nullable if you don't. I don't know yet what the defaults should be, but not this. Unfortunately, changing the defaults means that implementing nullability will be a breaking change. That's unavoidable, I'm afraid.
+
+Without thinking it through, my initial expectation would be that optional fields are nullable by default and required fields are non-nullable by default. It'd be nicer to have one default for all fields, but before I get worked up over that, let's see if my initial expectation makes any sense.
+
+First the default for optional fields. Consider the following schema and document.
+
+```python
+def book_schema():
+    required('title', type='string')
+    optional('author', type='object')
+    required('author.name', type='string')
+    optional('page_count', type='int')
+
+document = {
+    'title': 'Epic of Gilgamesh',
+    'author': None,
+    'page_count': None
+}
+```
+
+I don't see a clear-cut solution here. Personally, for an object like `author`, I have no problem with accepting null by default, but for a type like `int` it feels weird. That probably has more to do with years of programming in C and C++ than with any objective argument, though. Also, having the default depend on the type is bound to be confusing.
+
+What is the safer option? Well, by default, don't accept null. You forget to specify nullability, all your documents fail, but you inspect the problem and fix your schema. If, on the other hand, nullable is the default, fields that shouldn't be null but are still pass validation and you'll never know.
+
+A practical consideration: not all formats make the distinction between fields that are absent and fields that are null. Avro and CSV, for example, don't. When you convert documents in these formats to a Python dictionary, you can either leave out the empty fields, or add them with a `None` value. If you leave them out, the nullability doesn't matter. If you make them `None`, they will all fail validation unless they're nullable by default.
+
+So, now we have a good argument that nullable should be the default, and a good argument that non-nullable should be the default. Great. Let's distract ourselves from this conundrum by looking at the default for required fields.
+
+```python
+def book_schema():
+    required('title', type='string')
+    required('author', type='object')
+    required('author.name', type='string')
+    required('page_count', type='int')
+
+document = {
+    'title': None,
+    'author': None,
+    'page_count': None
+}
+```
+
+That document doesn't look like a valid book to me. I think the case where a field is required, but you want it to be nullable is rare, so that should not be the default.
+
+What about formats that don't distinguish between absent fields and fields that are null? Again, if the absent fields aren't added to the dictionary, nullability doesn't matter. However, if an absent field is represented by a null-value, you don't want it to be accepted by default, so required fields should be non-nullable unless otherwise indicated.
+
+The default for required fields is clear now: non-nullable. I'm tempted to say that this tips the balance for optional fields in favor of non-nullable, too, because then we have one default for both, but I think the case for formats like Avro and CSV is stronger: by default, an absent field is the same as a field with a null-value.
+
+### Specifying nullability
+
+There are three variations for specifying nullability that come to mind.
+
+* A validation function.
+
+```python
+required('accommodation', type='object')
+nullable('metadata', type='object')
+```
+
+* A modified type specification.
+
+```python
+required('accommodation', type='object')
+optional('metadata', type='object?')
+```
+
+* A parameter.
+
+```python
+required('accommodation', type='object', nullable=False)
+optional('metadata', type='object', nullable=True)
+```
+
+At first, I thought that required fields could never be nullable and that's where the idea of the `nullable()` validation function came from, but I changed my mind: you can have a nullable required field. That rules out the extra validation function, unless I'm willing to add two different validation functions – `required_nullable()` and `optional_nullable()` – which I'm not.
+
+The parameter option seems simple enough. It is a bit verbose for my taste, although that doesn't really matter if you use the default nullability most of the time. That does require that you know what the default nullability is and here it's unfortunate that the default is different for required and optional fields. You might decide to always include the `nullable` argument just for clarity and now things are verbose again.
+
+The modified type is clear and concise. It does violate the idea the optional fields should be nullable by default, but considering that it was a judgment call anyway and that adding a `?` to the type is so easy to do, I don't think it's a big deal.
+
+What might be a big deal, though, is the fact that you can't specify nullability without also specifying a type. In trying to come up with a case where you would want to do that, I remembered the idea I had for [allowing multiple types for a single field](#multiple-types). Say you want to indicate that a field can be either a string or a number. One option I came up with is the use of the `possible()` validation function.
+
+```python
+def schema():
+    optional('latitude')
+    possible('latitude', type='number')
+    possible('latitude', type='string', regex='-?\d+(?:\.\d+)?')
+```
+
+I never implemented this and maybe there's a better way of dealing with the issue, but let's say we want to go with it. How would you indicate that `latitude` can be nullable? You could do it in one of the possible types, but then really all of them should be nullable or it's just confusing. I mean, what would you expect this schema to do?
+
+```python
+def schema():
+    optional('latitude')
+    possible('latitude', type='number')
+    possible('latitude', type='string?', regex='-?\d+(?:\.\d+)?')
+```
+
+Using a `nullable` parameter is much clearer.
+
+```python
+def schema():
+    optional('latitude', nullable=True)
+    possible('latitude', type='number')
+    possible('latitude', type='string', regex='-?\d+(?:\.\d+)?')
+```
+
+Is this enough to drop modified types? I actually like the modified type slightly better than the parameter and right now, the only case against it is a hypothetical feature. Well, the feature isn't hypothetical, the implementation is. But the implementation looks so nice. Maybe we could use the modified type and make the example above the exception. Ugh no, then we have two different ways to do the same thing; that won't do.
+
+I thought of another scenario where you may want to add a field without specifying a type: when you don't care what the field contains. Say you have a JSON document that has a field `custom_data` that allows the user to store anything they want. The schema would look something like this.
+
+```python
+def schema():
+    required('id', type='number')
+    required('title', type='string')
+    optional('custom_data', nullable=False)
+```
+
+Well, that does it: we need to be able to specify nullability without type, so a parameter it will be.
+
+### Reporting null-values
+
+In the current implementation, when a field is null while it's not allowed to be, you get a message of type `invalid_type`. I don't like this very much, because it doesn't allow you to distinguish between an actual value with the wrong type, and null. Instead, I think it's better to add a new message type `null_value`. This is another reason implementing nullability will be a breaking change, but we passed that point already anyway.
