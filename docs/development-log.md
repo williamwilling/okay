@@ -41,6 +41,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Library name](#library-name)
 * [Parameterless schema functions](#parameterless-schema-functions)
 * [SchemaError)](#schemaerror)
+* [Performance optimizations](#performance-optimizations)
 
 ## Background
 
@@ -1003,3 +1004,74 @@ With the introduction of the [global validation functions](#no-schema-class) it'
 I decided to create a dedicated exception for reporting schema errors. A custom validator must return either a `Message` instance or `None`. If it doesn't, it contains a bug and I want to raise an exception for that. `TypeError` seemed the most fitting. I wrote a unit test for it, ran it, and it passed; that's not supposed to happen. Turns out, the validator chokes on the invalid return value from the custom validator – not surprisingly – and by coincidence it does so in a way that raises a `TypeError`. That's not good enough, though. I want to raise an exception on purpose, right where it happens, with a clear error message. I don't want a change in the validation error to lead to a different exception for the same problem. So, I started thinking: what if I create a separate exception for this?
 
 It actually makes quite a bit of sense, because it allows you to easily report errors the schema writer made. It creates a clear distinction between problems with the document (validation message), problems with the schema (`SchemaError`), and problems with the code (any other type of exception). I guess this also means I need to get more strict with checking the schema for problems, like passing a validation parameter of the wrong type, or making a list optional and its elements required.
+
+## Performance optimizations
+
+After releasing _v1_, I decided to have some fun and try my hand at improving performance. I reimplemented the core algorithm three times – unit tests are amazing! – and ended up with a version that performs about twice as fast as the original. Unfortunately, I didn't bother to update the development log. Now, it's almost a year later, and of course I don't remember all the things I tried or why I tried them. That was stupid, but if I ever had any doubts whether keeping a development log is worth it, I don't anymore.
+
+Currently, I have three open branches: `performance/indexing`, `performance/caching`, and `performance/preprocessing`. The last one is the winner, but I'll keep the other two around for reference. To check if I misremembered which one was fastest, I ran the performance test again. After I found the right script to run and figured out which lines to uncomment, that is. Anyway, I ran the same test on all four versions and here are the results.
+
+version       | running time (lower is better)
+--------------|-------------------------------
+v1            | 28.5s
+indexer       | 21.5s
+caching       | 28.3s
+preprocessing | 13.1s
+
+Here's the script I used to obtain these numbers.
+
+```python
+import timeit
+from okay import validate, Message
+from okay.schema import *
+
+def schema():
+    def score(field, value):
+        if not isinstance(value, dict) or 'score' not in value or 'out_of' not in value or not isinstance(value['score'], (int, float)) or not isinstance(value['out_of'], (int, float)):
+            return
+
+        if value['score'] > value['out_of']:
+            return Message(
+                type='score_too_high',
+                field=field,
+                expected=value['out_of']
+            )
+
+    required('metadata', type='object')
+    required('metadata.accommodation_id', type='int', min=1)
+    required('metadata.external_id', type='string')
+    required('metadata.partner', type='string')
+    required('metadata.source_type', type='string')
+    required('accommodation', type='object')
+    required('accommodation.name', type='string')
+    required('accommodation.address', type='string')
+    required('accommodation.city', type='string')
+    required('accommodation.country', type='string')
+    optional('accommodation.postal_code', type='string')
+    optional('accommodation.phone', type='string', regex=r'[\+\- 0-9]+')
+    optional('accommodation.checkin', type='object')
+    required('accommodation.checkin.from', type='string', regex=r'[0-2]\d:[0-2]\d')
+    required('accommodation.checkin.until', type='string', regex=r'[0-2]\d:[0-2]\d')
+    optional('accommodation.checkout', type='object')
+    required('accommodation.checkout.from', type='string', regex=r'[0-2]\d:[0-2]\d')
+    required('accommodation.checkout.until', type='string', regex=r'[0-2]\d:[0-2]\d')
+    optional('accommodation.geo', type='object')
+    required('accommodation.geo.longitude', type='string', regex=r'\-?\d+\.\d+')
+    required('accommodation.geo.latitude', type='string', regex=r'\-?\d+\.\d+')
+    required('accommodation.ratings[].aspect', type='string', options=['general', 'cleanliness', 'staff'])
+    required('accommodation.ratings[].score', type='number', min=0)
+    required('accommodation.ratings[].out_of', type='number', min=0)
+    optional('accommodation.ratings[]', type='custom', validator=score)
+
+
+documents = \
+    5000 * [{ "metadata": { "accommodation_id": 1, "external_id": "id1", "partner": "getaway", "source_type": "direct" }, "accommodation": { "name": "Heartbreak Hotel", "address": "Lonely Street", "city": "Memphis", "country": "United States", "postal_code": "37501", "phone": "+1 901-555-7300", "checkin": { "from": "15:00", "until": "23:00" }, "checkout": { "from": "00:00", "until": "12:00" }, "geo": { "longitude": "35.14", "latitude": "-90.038" }, "ratings": [{ "aspect": "general", "score": 2.5, "out_of": 5 }, { "aspect": "cleanliness", "score": 1.8, "out_of": 5 }, { "aspect": "staff", "score": 3.9, "out_of": 5 } ] } }] + \
+    5000 * [{ "metadata": { "accommodation_id": -1, "external_id": 1, "partner": "getaway" }, "accommodation": { "name": "Heartbreak Hotel", "address": "Lonely Street", "country": "United States", "postal_code": "37501", "phone": "+1 901-555-7300", "checkin": { "from": "15:00", "until": "midnight" }, "checkout": { "from": "00:00", "until": "12:00" }, "geo": { "longitude": 35.14, "latitude": "-90" }, "ratings": [ { "aspect": "general", "score": 2.5 }, { "aspect": "loneliness", "score": 1.8, "out_of": 5 }, { "aspect": "staff", "score": 6.9, "out_of": 5 } ] } }]
+
+elapsed_time = timeit.timeit('for document in documents: validate(schema, document)', globals=globals(), number=10)
+print(elapsed_time)
+```
+
+I should develop a suite of performance tests that are clean enough to commit to the repository and that cover multiple use cases. For example, a schema with only top-level elements, a deeply-nested schema, a schema with a lot of lists, completely valid documents, completely invalid documents, broken schemas, etc. Not only would that be helpful for further performance optimizations, it would also make for a good regression test.
+
+At some point, I should read through the code again and document how it works. The code itself is reasonably clean, but the higher level concepts of the algorithm aren't immediately apparent. If only I had kept a development log...
