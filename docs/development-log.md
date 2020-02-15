@@ -42,6 +42,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Parameterless schema functions](#parameterless-schema-functions)
 * [SchemaError)](#schemaerror)
 * [Performance optimizations](#performance-optimizations)
+* [Validating string length](#validating-string-length)
 
 ## Background
 
@@ -1075,3 +1076,27 @@ print(elapsed_time)
 I should develop a suite of performance tests that are clean enough to commit to the repository and that cover multiple use cases. For example, a schema with only top-level elements, a deeply-nested schema, a schema with a lot of lists, completely valid documents, completely invalid documents, broken schemas, etc. Not only would that be helpful for further performance optimizations, it would also make for a good regression test.
 
 At some point, I should read through the code again and document how it works. The code itself is reasonably clean, but the higher level concepts of the algorithm aren't immediately apparent. If only I had kept a development log...
+
+## Validating string length
+
+It might be useful to be able to validate the length of a string. Actually, you already can, using a regular expression, but that's a bit unwieldy for such a basic feature. Adding the validation itself will be simple enough, but there's a question of how it will interact with the other string validations. I mean, what would happen if you set a maximum length of five characters and the options you provide are: `red`, `green`, and `yellow`. Would the value `yellow` pass validation? What if the regular expression matches but the result is longer than the maximum length?
+
+At this point I would usually start pondering what the expected behavior would be, but I don't think that's necessary in this case, because there is another consideration that takes precedence: there's already a way to specify that multiple types of string validation must apply.
+
+```python
+from okay.schema import *
+
+def schema():
+    required('color', type='string', options=['red', 'green', 'yellow'])
+    required('color', type='string', max=5)
+    required('color', type='string', regex=r'#\d{6}')
+```
+
+All three validation rules in the example above would be applied independent from each other, so the value `yellow` would pass the first rule, but fail on the second and the third. If you want to specify that the value should either be at most five characters, or be one of the specified options, or match the regular expression, you currently have no way to do that. So, it would make sense to make that the behavior when you specify all validation parameter in one rule.
+
+```python
+from okay.schema import *
+
+def schema():
+    required('color', type='string', options=['red', 'green', 'yellow'], max=5, regex=r'#\d{6}')
+```
