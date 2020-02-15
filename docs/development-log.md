@@ -1203,7 +1203,7 @@ At first, I thought that required fields could never be nullable and that's wher
 
 The parameter option seems simple enough. It is a bit verbose for my taste, although that doesn't really matter if you use the default nullability most of the time. That does require that you know what the default nullability is and here it's unfortunate that the default is different for required and optional fields. You might decide to always include the `nullable` argument just for clarity and now things are verbose again.
 
-The modified type is clear and concise. It does violate the idea the optional fields should be nullable by default, but considering that it was a judgment call anyway and that adding a `?` to the type is so easy to do, I don't think it's a big deal.
+The modified type is clear and concise. It does violate the idea that optional fields should be nullable by default, but considering that it was a judgment call anyway and that adding a `?` to the type is so easy to do, I don't think it's a big deal.
 
 What might be a big deal, though, is the fact that you can't specify nullability without also specifying a type. In trying to come up with a case where you would want to do that, I remembered the idea I had for [allowing multiple types for a single field](#multiple-types). Say you want to indicate that a field can be either a string or a number. One option I came up with is the use of the `possible()` validation function.
 
@@ -1244,6 +1244,36 @@ def schema():
 ```
 
 Well, that does it: we need to be able to specify nullability without type, so a parameter it will be.
+
+Hold on, I may have thought of a way to make typeless specifications works using the modified type! It's simmple really: introduce a type that says you don't care about the type. If the type is `any`, you don't care about the value as long as it isn't null. If the type is `any?`, it can be anything, including null. The previous example would then look like this.
+
+```python
+def schema():
+    required('id', type='number')
+    required('title', type='string')
+    optional('custom_data', type='any')
+```
+
+This doesn't fit the case where a field accepts multiple types, but there it makes sense to call the type `union` (or `choice`, but again: a background in C and C++).
+
+```python
+def schema():
+    optional('latitude', type='union?')
+    possible('latitude', type='number')
+    possible('latitude', type='string', regex='-?\d+(?:\.\d+)?')
+```
+
+You can still leave out the type, but then the field is non-nullable, because with the modified type syntax, all fields are non-nullable by default. The type (without nullability) is determined by the rest of the schema.
+
+```python
+required('author')  # next line specifies a member, so `author` is of type `object`
+required('author.name', type='string')
+required('genres')  # next line specifies list elements, so `genres` is of type `list`
+required('genres', type='string')
+required('metadata')  # no other specification refers to `metadata`, so it's of type `any`
+```
+
+So, now we have two viable options again and no arguments to decide between them other than personal preference. I'll go with the modified type syntax, because I think it's slighlty more readable than the `nullable` parameter, and the default is easier to understand (non-nullable is the default for everything).
 
 ### Reporting null-values
 

@@ -753,6 +753,217 @@ class TestValidator:
         assert messages[0].type == 'invalid_type'
         assert messages[1].type == 'free_and_price'
 
+    def test_it_accepts_an_optional_nullable_null_value(self):
+        def schema():
+            optional('metadata', type='object?')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_rejects_an_optional_non_nullable_null_value(self):
+        def schema():
+            optional('metadata', type='object')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'metadata'
+        assert messages[0].expected == 'object'
+    
+    def test_it_accepts_a_required_nullable_null_value(self):
+        def schema():
+            required('metadata', type='object?')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_rejects_a_required_non_nullable_null_value(self):
+        def schema():
+            required('metadata', type='object')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'metadata'
+        assert messages[0].expected == 'object'
+    
+    def test_it_accepts_a_typeless_nullable_null_value(self):
+        def schema():
+            optional('metadata', type='any?')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_rejects_a_typeless_non_nullable_null_value(self):
+        def schema():
+            optional('metadata', type='any')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'metadata'
+        assert 'expected' not in messages[0].__dict__
+    
+    def test_it_rejects_required_null_value_by_default(self):
+        def schema():
+            required('metadata')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+    
+    def test_it_rejects_optional_null_value_by_default(self):
+        def schema():
+            optional('metadata')
+        
+        document = { 'metadata': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+    
+    def test_it_raises_when_nullable_field_is_already_non_nullable(self):
+        def schema():
+            optional('metadata', type='object')
+            optional('metadata', type='object?')
+        
+        document = {}
+
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_raises_when_non_nullable_field_is_already_nullable(self):
+        def schema():
+            optional('metadata', type='object?')
+            optional('metadata', type='object')
+        
+        document = {}
+
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_accepts_nullable_list_elements(self):
+        def schema():
+            required('values[]', type='number?')
+        
+        document = { 'values': [ None, None ] }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_rejects_non_nullable_list_elements(self):
+        def schema():
+            required('values[]', type='number')
+        
+        document = { 'values': [ None, None ]}
+        messages = validate(schema, document)
+
+        assert len(messages) == 2
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'values[0]'
+        assert messages[1].type == 'null_value'
+        assert messages[1].field == 'values[1]'
+    
+    def test_it_makes_required_list_non_nullable_by_default(self):
+        def schema():
+            required('values[]')
+        
+        document = { 'values': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'values'
+    
+    def test_it_makes_optional_list_non_nullable_by_default(self):
+        def schema():
+            optional('values[]')
+        
+        document = { 'values': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'values'
+    
+    def test_it_accepts_nullable_required_list_after_list_elements(self):
+        def schema():
+            required('values[]')
+            required('values', type='list?')
+        
+        document = { 'values': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_accepts_nullable_required_list_before_list_elements(self):
+        def schema():
+            required('values', type='list?')
+            required('values[]')
+        
+        document = { 'values': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_rejects_non_nullable_optional_list(self):
+        def schema():
+            optional('values[]')
+            optional('values', type='list')
+        
+        document = { 'values': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'values'
+    
+    def test_it_makes_implicit_object_non_nullable(self):
+        def schema():
+            required('author.name')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'author'
+        assert messages[0].expected == 'object'
+    
+    def test_it_accepts_nullable_object_after_implicit_object(self):
+        def schema():
+            required('author.name')
+            required('author', type='object?')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_accepts_nullable_object_before_implicit_object(self):
+        def schema():
+            required('author', type='object?')
+            required('author.name')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert messages == []
+
 
 def empty_schema():
     pass

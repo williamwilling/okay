@@ -10,6 +10,9 @@ class Schema:
 class FieldDefinition:
     def __init__(self):
         self.strictness = 'unknown'
+        self.nullable = None
+        self.is_implicit = True
+        self.type = None
         self.type_validators = []
 
 _active_schema = None
@@ -39,8 +42,17 @@ def _process(field_name, type, is_required, **kwargs):
     if type == 'list':
         fields[field_name + '[]'].strictness = strictness
     
+    nullable = False
+    if type and type.endswith('?'):
+        type = type[:-1]
+        nullable = True
+    
+    if type == 'any':
+        type = None
+    
     while True:
         field = fields[field_name]
+        field.type = type
 
         if field.strictness == 'required' and strictness == 'optional':
             raise SchemaError(
@@ -54,6 +66,23 @@ def _process(field_name, type, is_required, **kwargs):
                 type='already_optional',
                 field=field_name.strip('[]')
             )
+        
+        if not is_implicit and not field.is_implicit and field.nullable != nullable:
+            if nullable:
+                raise SchemaError(
+                    "Field '" + field_name + "' marked as nullable, but it's already non-nullable.",
+                    type='already_non_nullable',
+                    field=field_name.strip('[]')
+                )
+            else:
+                raise SchemaError(
+                    "Field '" + field_name + "' marked as non-nullable, but it's already nullable.",
+                    type='already_nullable',
+                    field=field_name.strip('[]')
+                )
+        elif field.is_implicit:
+            field.nullable = nullable
+            field.is_implicit = is_implicit
 
         type_validator = None
         if type:
@@ -77,12 +106,14 @@ def _process(field_name, type, is_required, **kwargs):
         if field_name.endswith('[]'):
             field_name = field_name[:-2]
             type = 'list'
+            nullable = False
             kwargs = {}
             is_implicit = True
         elif '.' in field_name:
             field_name = field_name.rsplit('.', 1)[0]
             strictness = 'unknown'
             type = 'object'
+            nullable = False
             kwargs = {}
             is_implicit = True
         else:

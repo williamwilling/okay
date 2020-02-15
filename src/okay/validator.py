@@ -43,10 +43,21 @@ class Validator:
     def _validate(self):
         for field_name, fields in self._index.fields.items():
             for field in fields:
-                for type_validator in self._schema.fields[field_name].type_validators:
-                    message = type_validator(field.path, field.value)
-                    if not message is None:
+                if field.value is None:
+                    if not self._schema.fields[field_name].nullable:
+                        message = Message(
+                            type='null_value',
+                            field=field.path
+                        )
+                        if self._schema.fields[field_name].type is not None:
+                            message.add(expected=self._schema.fields[field_name].type)
+
                         self.messages.append(message)
+                else:
+                    for type_validator in self._schema.fields[field_name].type_validators:
+                        message = type_validator(field.path, field.value)
+                        if not message is None:
+                            self.messages.append(message)
     
     def _report_extra_fields(self):
         if self._schema.ignore_extra_fields:
