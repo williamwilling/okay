@@ -965,6 +965,19 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert messages == []
+    
+    def test_it_reports_if_parent_field_is_null(self):
+        def schema():
+            required('accommodation.name')
+        
+        document = { 'accommodation': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'null_value'
+        assert message.field == 'accommodation'
+        assert message.expected == 'object'
 
 
 def empty_schema():
