@@ -814,7 +814,7 @@ class TestValidator:
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'metadata'
-        assert 'expected' not in messages[0].__dict__
+        assert messages[0].expected == 'any'
     
     def test_it_rejects_required_null_value_by_default(self):
         def schema():
@@ -825,6 +825,7 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
+        assert 'expected' not in messages[0].__dict__
     
     def test_it_rejects_optional_null_value_by_default(self):
         def schema():
@@ -835,6 +836,7 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
+        assert 'expected' not in messages[0].__dict__
     
     def test_it_raises_when_nullable_field_is_already_non_nullable(self):
         def schema():

@@ -47,9 +47,6 @@ def _process(field_name, type, is_required, **kwargs):
         type = type[:-1]
         nullable = True
     
-    if type == 'any':
-        type = None
-    
     while True:
         field = fields[field_name]
         field.type = type
@@ -85,7 +82,7 @@ def _process(field_name, type, is_required, **kwargs):
             field.is_implicit = is_implicit
 
         type_validator = None
-        if type:
+        if type and type != 'any':
             type_validator_builder = getattr(type_validators, type.capitalize() + 'Validator', None)
             if type_validator_builder:
                 type_validator = type_validator_builder(field_name, **kwargs)
