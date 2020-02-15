@@ -20,6 +20,7 @@
   * [invalid_option](#invalid_option)
   * [invalid_type](#invalid_type)
   * [no_match](#no_match)
+  * [null_value](#null_value)
   * [number_too_large](#number_too_large)
   * [number_too_small](#number_too_small)
   * [too_few_elements](#too_few_elements)
@@ -90,6 +91,10 @@ Property | Description
 The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](#user-guide.md#custom-validators), or an invalid [validation type](#type-validators). If `SchemaError` was raised in response to another exception, that other exception is available from the `__cause__` property of the `SchemaError` instance.
 
 ## Type validators
+
+### any
+
+The value can be of any type. This is the same as not specifying a type, unless you make it nullable.
 
 ### bool
 
@@ -186,6 +191,16 @@ Property           | Description
 `field`            | The name of the field that failed validation.
 `expected.regex`   | The regular expression pattern the field should match.
 `expected.options` | The list of acceptable exceptions.
+
+### null_value
+
+The fields contains `null`, even though it's not allowed to.
+
+Property   | Description
+-----------|------------
+`type`     | `null_value`
+`field`    | The name of the field that failed validation.
+`expected` | The expected type of the field. Only present if a type was specified for the field.
 
 ### number_too_large
 

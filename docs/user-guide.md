@@ -6,6 +6,7 @@
   * [Validating types](#validating-types)
   * [Nested fields](#nested-fields)
   * [Lists](#lists)
+  * [Nullable types](#nullable-types)
   * [Unspecified fields](#unspecified-fields)
   * [Custom validators](#custom-validators)
   * [Using regular code](#using-regular-code)
@@ -138,6 +139,19 @@ def book_schema():
     optional('publication_date.day', type='int', min=1, max=31)
 ```
 
+The first validation rule in the example above is actually superfluous. By default, the parent of a nested field is an optional object, so the following example is functionally the same as the previous one.
+
+```python
+from okay.schema import *
+
+def book_schema():
+    required('publication_date.year', type='int')
+    optional('publication_date.month', type='int', min=1, max=12)
+    optional('publication_date.day', type='int', min=1, max=31)
+```
+
+You only need to specify an optional object if you want to make it [nullable](#nullable-types).
+
 ### Lists
 
 To validate that a field is a list, use the `list` type. The `min` and `max` parameters allow you to specify the expected size of the list.
@@ -165,7 +179,7 @@ def book_schema():
 
 In this example, `genres` is an optional list of strings and `authors` is a required list of authors, where each author has an optional first name and a required last name. `genres` can be an empty list, but `authors` must have at least one element.
 
-There's an oddity with validation rules for list elements: `optional` and `required` don't apply to the list elements. Instead they apply to the list. In other words, `optional('genres[]', type='object')` automatically makes the field `genres` an optional list, so the line `optional('genres', type='list')` is superfluous. You only need to add a validation rule for the list itself if you want to validate more than just its type. In the example above, we need to keep the line `required('authors', type='list', min=1)` to ensure that the list has at least one element.
+There's an oddity with validation rules for list elements: `optional` and `required` don't apply to the list elements. Instead they apply to the list. In other words, `optional('genres[]', type='object')` automatically makes the field `genres` an optional list, so the line `optional('genres', type='list')` is superfluous. You only need to add a validation rule for the list itself if you want to validate more than just its type, or if you want the list to be [nullable](#nullable-types). In the example above, we need to keep the line `required('authors', type='list', min=1)` to ensure that the list has at least one element.
 
 Also, make sure you don't use `optional()` for the list and `required()` for the elements or vice versa. You would effectively be saying that the list is both optional and required and that results in a [`SchemaError`](reference.md#schemaerror).
 
@@ -177,6 +191,22 @@ def book_schema():
     required('genres[]', type='string')     # error: genres is already optional
     required('authors', type='list', min=1)
     optional('authors[]', type='object')    # error: authors is already required
+```
+
+### Nullable types
+
+By default, fields aren't allowed to be `null`. If you want to allow `null` values, you can do so by adding a `?` to the type.
+
+```python
+from okay.schema import *
+
+def schema():
+    required('title', type='string')               # not nullable
+    required('author', type='object?')             # nullable
+    optional('author.first_name', type='string?')  # nullable
+    required('author.last_name', type='string')    # not nullable
+    required('genres', type='list?')               # nullable
+    required('genres[]', type='string')            # not nullable
 ```
 
 ### Unspecified fields
