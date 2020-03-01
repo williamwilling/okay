@@ -40,9 +40,10 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [No Schema-class](#no-schema-class)
 * [Library name](#library-name)
 * [Parameterless schema functions](#parameterless-schema-functions)
-* [SchemaError)](#schemaerror)
+* [SchemaError](#schemaerror)
 * [Performance optimizations](#performance-optimizations)
 * [Validating string length](#validating-string-length)
+  * [Validation messages for strings](#validation-messages-for-strings)
 
 ## Background
 
@@ -1100,3 +1101,150 @@ from okay.schema import *
 def schema():
     required('color', type='string', options=['red', 'green', 'yellow'], max=5, regex=r'#[0-9a-f]{6}')
 ```
+
+### Validation messages for strings
+
+Now that we created the possibility to say _any of these checks should pass_, we have a bit of a conundrum when it comes to reporting on a validation error: what is the type of the validation message? Normally, if your string doesn't match a regular expression, the type is `no_match`, if your string is not one of the specified options, the type is `invalid_option`, and if your string is too long, the type is `string_too_long`, but what if we fail multiple of those checks? Consider the schema in the last example. Say we pass it the value `magenta`. That fails all the checks, so what do we report?
+
+One option is to come up with a sensible order of priority, for example `regex`, `options`, `min`/`max`. If `regex` is set, we report `no_match`, if `regex` is not set and `options` is, we report `invalid_option`, and if neither `regex` nor `options` is set, we report `string_too_short`/`string_too_long`. Another option is to create a single message type for all of them, like `invalid_string` (which would be a breaking change).
+
+Another question we run into, is how to report the expected value. Right now, a validation message looks like this.
+
+```python
+{
+    'type': 'no_match',
+    'field': 'color',
+    'expected': r'#[0-9a-f]{6}'
+}
+```
+
+_Side note_: I never wrote down why `value` isn't part of the validation message, nor do I remember. It seems like it would be convenient to include it.
+
+What should that message look like when we do multiple validation checks at once? I guess we need to include all expectations.
+
+```python
+{
+    'type': 'no_match',
+    'field': 'color',
+    'expected': {
+        'regex': r'#[0-9a-f]{6}',
+        'options': [ 'red', 'green', 'yellow' ],
+        'max': 5
+    }
+}
+```
+
+If we only specify a regular expression in the validation rules, should `expected` be a string, or should it be an object with a `regex` field, for consistency? Maybe `expected` should always be an object and mention the validation parameters explicitely. In that case, you might as well use the validator type as the message type.
+
+```python
+{
+    'type': 'number',
+    'field': 'month',
+    'expected': {
+        'min': 1,
+        'max': 12
+    }
+}
+```
+
+Actually, that doesn't look too bad. A one-to-one mapping between the validation rule and the validation message makes sense, I think. I can't immediately come up with a downside. Other than that it's a breaking change, but it seems to really clean up the error reporting, so that seems worth it to me. Looking at the currently existing message types, I see none of them that can't be handled in this fashion. The odd one out is `null_value`, but we can solve that by adding a `nullable` field to `expected`. What about validation rules that have no type?
+
+```python
+from okay.schema import *
+
+def schema():
+    required('metadata')
+```
+
+This is perfectly legal and it will fail if `metadata` is not present with a message of type `missing_field`. (Interestingly, this information is currently missing from the reference guide.) This is a feature I would like to keep, because it allows you to add opaque fields to your schema, which can be useful. We could also introduce a new message type for whenever the validation type isn't specified, for example `unspecified`. 
+
+```python
+{
+    'type': 'unspecified',
+    'field': 'metadata',
+    'expected': {
+        'required': True
+    }
+}
+```
+
+My worry here is that it's not always clear that validation failed because of a missing field. 
+
+```python
+{
+    'type': 'number',
+    'field': 'month',
+    'expected': {
+        'required': True
+        'min': 1,
+        'max': 12
+    }
+}
+```
+
+What went wrong here? Is the field missing or is the value out of range? Actually, the problem is there even without the missing field stuff; you can't distinguish between the value being too small and it being too large. All of a sudden it makes sense why I went for message types separate from the validation types. Including the value that failed validation would make it easier to determine which check failed, but it's still cumbersome to write code that translates a message object to a human-readable string. We could include a field that tells you exactly which parameter caused validation to fail, but that would have to be a list, because this line of thought all started because string validation could fail multiple parameters at once.
+
+Another potential issue is that you might want more specific message types from custom validators than `custom`. Okay, let's scrap the idea of a one-to-one mapping between validation types and message types. We go for many specific message types rather than a few generic ones, because that makes turning them into strings easier. Back where we started.
+
+I think the order of priority I described in the beginning is a sensible solution, but it leaves the question what to do with the `expected` field. Always an object? Should it mention all possible parameters for that message type, or should it leave out the ones that aren't specified in the validation rule? Being explicit here probably pays off, in terms of both consistency and completeness.
+
+```python
+{
+    'type': 'no_match',
+    'field': 'color',
+    'expected': {
+        'regex': r'#[0-9a-f]{6}'
+        'options': [ 'red', 'green', 'blue' ]
+        'min': None,
+        'max': None,
+        'case_sensitive': True
+    }
+}
+
+{
+    'type': 'string_too_short',
+    'field': 'parameter',
+    'expected': {
+        'min': 3,
+        'max': None,
+        'options': [ 'id' ],
+        'regex': None,
+        'case_sensitive': True
+    }
+}
+
+{
+    'type': 'invalid_string_option',
+    'field': 'day',
+    'expected': {
+        'options': [ 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ],
+        'case_sensitive': False,
+        'min': None,
+        'max': None,
+        'regex': None
+    }
+}
+
+{
+    'type': 'number_too_large',
+    'field': 'month',
+    'expected': {
+        'max': 12,
+        'min': 1
+    }
+}
+
+{
+    'type': 'missing_field',
+    'field': 'year'
+}
+
+{
+    'type': 'null_value',
+    'field': 'time'
+}
+```
+
+That looks about right. I changed `invalid_option` to `invalid_string_option` so I can add an `option` parameter to other validation types as well. (This is a breaking change.) I also swapped the priority of `options` and `min`/`max`, because judging from the example I picked, it makes more sense to consider options exceptions to the specified range than the other way around. (This is not a breaking change, because string length validation is still a new feature at this point.)
+
+`missing_field`, `extra_field`, and `null_value` don't have an `expected` field at all, since it wouldn't have any meaning. Custom validators can add pretty much anything they want, but I think `expected` should contain all the parameters the validator can handle, just like with any other validator. If a (custom) validator doesn't expect any parameters, `expected` should be an empty object, for consistency.
