@@ -176,7 +176,7 @@ class TestStringValidator:
         
         message = validate_string('color', 'magenta')
         
-        assert message.type == 'invalid_option'
+        assert message.type == 'string_too_long'
         assert message.field == 'color'
         assert message.expected == {
             'options': ['red', 'green', 'blue'],

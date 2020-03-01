@@ -56,13 +56,6 @@ class StringValidator:
                 expected=expected
             )
 
-        if self._options and not pass_options:
-            return Message(
-                type='invalid_option',
-                field=field,
-                expected=expected
-            )
-        
         if self._min and not pass_minimum:
             return Message(
                 type='string_too_short',
@@ -73,6 +66,13 @@ class StringValidator:
         if self._max and not pass_maximum:
             return Message(
                 type='string_too_long',
+                field=field,
+                expected=expected
+            )
+        
+        if self._options and not pass_options:
+            return Message(
+                type='invalid_option',
                 field=field,
                 expected=expected
             )
