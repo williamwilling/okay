@@ -153,15 +153,15 @@ If you provide both `regex` and `options`, the value must match either. In other
 
 ## Validation messages
 
-### invalid_option
+### invalid_string_option
 
-The field doesn't match any of the allowed options.
+The field doesn't match any of the allowed strings.
 
 Property   | Description
 -----------|------------
-`type`     | `invalid_option`
+`type`     | `invalid_string_option`
 `field`    | The name of the field that failed validation.
-`expected` | The list of acceptable options.
+`expected` | The list of acceptable strings.
 
 ### invalid_type
 

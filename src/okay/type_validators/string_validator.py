@@ -72,7 +72,7 @@ class StringValidator:
         
         if self._options and not pass_options:
             return Message(
-                type='invalid_option',
+                type='invalid_string_option',
                 field=field,
                 expected=expected
             )

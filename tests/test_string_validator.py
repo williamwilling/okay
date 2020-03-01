@@ -45,7 +45,7 @@ class TestStringValidator:
         
         message = validate_string('unit', 'm2')
 
-        assert message.type == 'invalid_option'
+        assert message.type == 'invalid_string_option'
         assert message.field == 'unit'
         assert message.expected == ['sqm', 'sqft']
     
@@ -87,7 +87,7 @@ class TestStringValidator:
         
         message = validate_string('unit', 'sqM')
 
-        assert message.type == 'invalid_option'
+        assert message.type == 'invalid_string_option'
         assert message.field == 'unit'
         assert message.expected == ['SQm', 'SQft']
     
