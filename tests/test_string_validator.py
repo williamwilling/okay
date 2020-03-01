@@ -97,3 +97,103 @@ class TestStringValidator:
         message = validate_string('unit', 'sqM')
 
         assert message is None
+    
+    def test_it_accepts_a_string_shorter_than_the_maximum_length(self):
+        validate_string = StringValidator(max=5)
+
+        message = validate_string('color', 'red')
+
+        assert message is None
+    
+    def test_it_rejects_a_string_longer_than_the_maximum_length(self):
+        validate_string = StringValidator(max=5)
+
+        message = validate_string('color', 'yellow')
+
+        assert message.type == 'string_too_long'
+        assert message.field == 'color'
+        assert message.expected == 5
+    
+    def test_it_accepts_a_string_longer_than_the_minimum_length(self):
+        validate_string = StringValidator(min=4)
+
+        message = validate_string('color', 'green')
+
+        assert message is None
+    
+    def test_it_rejects_a_string_shorter_than_the_minimum_length(self):
+        validate_string = StringValidator(min=4)
+
+        message = validate_string('color', 'red')
+
+        assert message.type == 'string_too_short'
+        assert message.field == 'color'
+        assert message.expected == 4
+    
+    def test_it_accepts_a_string_in_length_range_and_not_in_options(self):
+        validate_string = StringValidator(min=2, max=5, options=['red', 'green', 'yellow'])
+
+        message = validate_string('color', 'blue')
+
+        assert message is None
+    
+    def test_it_accepts_a_string_in_options_and_outside_length_range(self):
+        validate_string = StringValidator(min=2, max=5, options=['red', 'green', 'yellow'])
+
+        message = validate_string('color', 'yellow')
+
+        assert message is None
+
+    def test_it_accepts_a_string_in_length_range_and_not_matching_a_regex(self):
+        validate_string = StringValidator(min=2, max=5, regex=r'#[0-9a-f]{6}')
+
+        message = validate_string('color', 'red')
+
+        assert message is None
+    
+    def test_it_accepts_a_string_matching_a_regex_and_not_in_length_range(self):
+        validate_string = StringValidator(min=2, max=5, regex=r'#[0-9a-f]{6}')
+
+        message = validate_string('color', '#ff0000')
+
+        assert message is None
+    
+    def test_it_reports_a_string_not_matching_a_regex_and_not_in_length_range(self):
+        validate_string = StringValidator(regex=r'#[0-9a-f]{6}', min=2, max=6)
+        
+        message = validate_string('color', 'magenta')
+        
+        assert message.type == 'no_match'
+        assert message.field == 'color'
+        assert message.expected == {
+            'regex': r'#[0-9a-f]{6}',
+            'min': 2,
+            'max': 6
+        }
+    
+    def test_it_reports_a_string_not_in_options_and_not_in_length_range(self):
+        validate_string = StringValidator(options=['red', 'green', 'blue'], min=2, max=6)
+        
+        message = validate_string('color', 'magenta')
+        
+        assert message.type == 'invalid_option'
+        assert message.field == 'color'
+        assert message.expected == {
+            'options': ['red', 'green', 'blue'],
+            'min': 2,
+            'max': 6
+        }
+    
+    def test_it_reports_a_string_not_matching_a_regex_and_not_in_options_and_not_in_length_range(self):
+        validate_string = StringValidator(regex=r'#[0-9a-f]{6}', min=2, max=6, options=['red', 'green', 'blue'])
+        
+        message = validate_string('color', 'magenta')
+        
+        assert message.type == 'no_match'
+        assert message.field == 'color'
+        assert message.expected == {
+            'regex': r'#[0-9a-f]{6}',
+            'options': ['red', 'green', 'blue'],
+            'min': 2,
+            'max': 6
+        }

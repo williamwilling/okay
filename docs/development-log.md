@@ -1089,14 +1089,14 @@ from okay.schema import *
 def schema():
     required('color', type='string', options=['red', 'green', 'yellow'])
     required('color', type='string', max=5)
-    required('color', type='string', regex=r'#\d{6}')
+    required('color', type='string', regex=r'#[0-9a-f]{6}')
 ```
 
-All three validation rules in the example above would be applied independent from each other, so the value `yellow` would pass the first rule, but fail on the second and the third. If you want to specify that the value should either be at most five characters, or be one of the specified options, or match the regular expression, you currently have no way to do that. So, it would make sense to make that the behavior when you specify all validation parameter in one rule.
+All three validation rules in the example above would be applied independent from each other, so the value `yellow` would pass the first rule, but fail on the second and the third. If you want to specify that the value should either be at most five characters, or be one of the specified options, or match the regular expression, you currently have no way to do that. So, it would make sense to make that the behavior when you specify all validation parameters in one rule.
 
 ```python
 from okay.schema import *
 
 def schema():
-    required('color', type='string', options=['red', 'green', 'yellow'], max=5, regex=r'#\d{6}')
+    required('color', type='string', options=['red', 'green', 'yellow'], max=5, regex=r'#[0-9a-f]{6}')
 ```
