@@ -330,7 +330,10 @@ class TestValidator:
         message = messages[1]
         assert message.type == 'number_too_large'
         assert message.field == 'accommodation.ratings[2].score'
-        assert message.expected == 5
+        assert message.expected == {
+            'max': 5,
+            'min': None
+        }
     
     def test_it_rejects_object_with_missing_fields_in_a_list(self):
         def schema():

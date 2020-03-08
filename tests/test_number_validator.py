@@ -47,7 +47,10 @@ class TestNumberValidator:
         
         assert message.type == 'number_too_small'
         assert message.field == 'score'
-        assert message.expected == 1
+        assert message.expected == {
+            'min': 1,
+            'max': None
+        }
     
     def test_it_accepts_a_number_at_most_the_maximum(self):
         validate_number = NumberValidator(max=5)
@@ -63,4 +66,31 @@ class TestNumberValidator:
 
         assert message.type == 'number_too_large'
         assert message.field == 'score'
-        assert message.expected == 5
+        assert message.expected == {
+            'max': 5,
+            'min': None
+        }
+    
+    def test_it_reports_the_minimum_when_number_larger_than_the_maximum(self):
+        validate_number = NumberValidator(min=0, max=5)
+
+        message = validate_number('score', 7)
+
+        assert message.type == 'number_too_large'
+        assert message.field == 'score'
+        assert message.expected == {
+            'max': 5,
+            'min': 0
+        }
+
+    def test_it_reports_the_maximum_when_number_larger_than_the_minimum(self):
+        validate_number = NumberValidator(min=0, max=5)
+
+        message = validate_number('score', -2)
+
+        assert message.type == 'number_too_small'
+        assert message.field == 'score'
+        assert message.expected == {
+            'max': 5,
+            'min': 0
+        }

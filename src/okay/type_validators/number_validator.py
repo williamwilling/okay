@@ -15,17 +15,21 @@ class NumberValidator:
             )
         
         value = Decimal(value)
+        expected = {
+            'min': self._min,
+            'max': self._max
+        }
         
-        if self._min and value < self._min:
+        if self._min is not None and value < self._min:
             return Message(
                 type='number_too_small',
                 field=field,
-                expected=self._min
+                expected=expected
             )
         
-        if self._max and value > self._max:
+        if self._max is not None and value > self._max:
             return Message(
                 type='number_too_large',
                 field=field,
-                expected=self._max
+                expected=expected
             )

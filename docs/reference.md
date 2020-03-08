@@ -209,7 +209,8 @@ Property   | Description
 -----------|------------
 `type`     | `number_too_large`
 `field`    | The name of the field that failed validation.
-`expected` | The maximum value allowed.
+`expected.max` | The maximum value allowed.
+`expected.min` | The minimum value allowed, or `None` if not specified.
 
 ### number_too_small
 
@@ -219,8 +220,8 @@ Property   | Description
 -----------|------------
 `type`     | `number_too_small`
 `field`    | The name of the field that failed validation.
-`expected` | The minimum value allowed.
-
+`expected.max` | The maximum value allowed, or `None` if not specified.
+`expected.min` | The minimum value allowed.
 
 ### string_too_long
 
