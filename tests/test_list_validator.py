@@ -48,3 +48,12 @@ class TestListValidator:
         assert message.type == 'too_many_elements'
         assert message.field == 'bathrooms'
         assert message.expected == 2
+    
+    def test_it_reports_a_list_with_more_elements_than_a_maximum_of_0(self):
+        validate_list = ListValidator(max=0)
+
+        message = validate_list('rooms', [ {} ])
+
+        assert message.type == 'too_many_elements'
+        assert message.field == 'rooms'
+        assert message.expected == 0

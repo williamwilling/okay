@@ -4,7 +4,7 @@ from ..message import Message
 class StringValidator:
     def __init__(self, field=None, regex=None, options=None, case_sensitive=True, min=None, max=None):
         self._pattern = regex
-        self._regex = re.compile(self._pattern) if self._pattern else None
+        self._regex = re.compile(self._pattern) if self._pattern is not None else None
         
         self._options = options
         self._case_sensitive = case_sensitive
@@ -24,43 +24,43 @@ class StringValidator:
             )
         
         expected = {
-            'case_sensitive': self._case_sensitive if self._options else None,
+            'case_sensitive': self._case_sensitive if self._options is not None else None,
             'max': self._max,
             'min': self._min,
             'options': self._options,
             'regex': self._pattern
         }
         
-        pass_regex = self._regex.fullmatch(value) if self._regex else False
-        pass_minimum = len(value) >= self._min if self._min else False
-        pass_maximum = len(value) <= self._max if self._max else False
-        pass_options = (value in self._options) or (not self._case_sensitive and value.lower() in self._options) if self._options else False
+        pass_regex = self._regex.fullmatch(value) if self._regex is not None else False
+        pass_minimum = len(value) >= self._min if self._min is not None else False
+        pass_maximum = len(value) <= self._max if self._max is not None else False
+        pass_options = (value in self._options) or (not self._case_sensitive and value.lower() in self._options) if self._options is not None else False
 
         if pass_regex or pass_options or (pass_minimum and pass_maximum):
             return
 
-        if self._regex and not pass_regex:
+        if self._regex is not None and not pass_regex:
             return Message(
                 type='no_match',
                 field=field,
                 expected=expected
             )
 
-        if self._min and not pass_minimum:
+        if self._min is not None and not pass_minimum:
             return Message(
                 type='string_too_short',
                 field=field,
                 expected=expected
             )
         
-        if self._max and not pass_maximum:
+        if self._max is not None and not pass_maximum:
             return Message(
                 type='string_too_long',
                 field=field,
                 expected=expected
             )
         
-        if self._options and not pass_options:
+        if self._options is not None and not pass_options:
             return Message(
                 type='invalid_string_option',
                 field=field,

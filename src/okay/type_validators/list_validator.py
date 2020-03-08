@@ -13,14 +13,14 @@ class ListValidator:
                 expected='list'
             )
         
-        if self._min and len(value) < self._min:
+        if self._min is not None and len(value) < self._min:
             return Message(
                 type='too_few_elements',
                 field=field,
                 expected=self._min
             )
         
-        if self._max and len(value) > self._max:
+        if self._max is not None and len(value) > self._max:
             return Message(
                 type='too_many_elements',
                 field=field,

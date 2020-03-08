@@ -235,3 +235,48 @@ class TestStringValidator:
             'options': ['red', 'green', 'blue'],
             'case_sensitive': True
         }
+    
+    def test_it_reports_when_exceeding_maximum_of_0(self):
+        validate_string = StringValidator(max=0)
+
+        message = validate_string('color', 'red')
+
+        assert message.type == 'string_too_long'
+        assert message.field == 'color'
+        assert message.expected == {
+            'max': 0,
+            'min': None,
+            'regex': None,
+            'options': None,
+            'case_sensitive': None
+        }
+    
+    def test_it_reports_when_options_list_is_empty(self):
+        validate_string = StringValidator(options=[])
+
+        message = validate_string('color', 'red')
+
+        assert message.type == 'invalid_string_option'
+        assert message.field == 'color'
+        assert message.expected == {
+            'options': [],
+            'case_sensitive': True,
+            'max': None,
+            'min': None,
+            'regex': None
+        }
+    
+    def test_it_reports_when_regex_is_empty_string(self):
+        validate_string = StringValidator(regex='')
+
+        message = validate_string('color', 'red')
+
+        assert message.type == 'no_match'
+        assert message.field == 'color'
+        assert message.expected == {
+            'regex': '',
+            'min': None,
+            'max': None,
+            'options': None,
+            'case_sensitive': None
+        }

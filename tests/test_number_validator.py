@@ -84,13 +84,37 @@ class TestNumberValidator:
         }
 
     def test_it_reports_the_maximum_when_number_larger_than_the_minimum(self):
-        validate_number = NumberValidator(min=0, max=5)
+        validate_number = NumberValidator(min=1, max=5)
 
-        message = validate_number('score', -2)
+        message = validate_number('score', 0)
 
         assert message.type == 'number_too_small'
         assert message.field == 'score'
         assert message.expected == {
             'max': 5,
-            'min': 0
+            'min': 1
+        }
+    
+    def test_it_reports_when_number_smaller_than_minimum_of_zero(self):
+        validate_number = NumberValidator(min=0)
+
+        message = validate_number('score', -1)
+
+        assert message.type == 'number_too_small'
+        assert message.field == 'score'
+        assert message.expected == {
+            'min': 0,
+            'max': None
+        }
+    
+    def test_it_reports_when_number_larger_than_maximum_of_zero(self):
+        validate_number = NumberValidator(max=0)
+
+        message = validate_number('score', 1)
+
+        assert message.type == 'number_too_large'
+        assert message.field == 'score'
+        assert message.expected == {
+            'max': 0,
+            'min': None
         }
