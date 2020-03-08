@@ -31,7 +31,13 @@ class TestStringValidator:
         
         assert message.type == 'no_match'
         assert message.field == 'phone'
-        assert message.expected == r'[\d\(\)\+\- ]+'
+        assert message.expected == {
+            'regex': r'[\d\(\)\+\- ]+',
+            'max': None,
+            'min': None,
+            'options': None,
+            'case_sensitive': None
+        }
     
     def test_it_accepts_a_string_in_a_list_of_options(self):
         validate_string = StringValidator(options=['sqm', 'sqft'])
@@ -47,7 +53,13 @@ class TestStringValidator:
 
         assert message.type == 'invalid_string_option'
         assert message.field == 'unit'
-        assert message.expected == ['sqm', 'sqft']
+        assert message.expected == {
+            'options': ['sqm', 'sqft'],
+            'case_sensitive': True,
+            'max': None,
+            'min': None,
+            'regex': None
+        }
     
     def test_it_accepts_a_string_in_a_list_of_options_if_regex_doesnt_match(self):
         validate_string = StringValidator(regex=r'\+[\d\(\)\+\- ]+', options=['112'])
@@ -72,7 +84,10 @@ class TestStringValidator:
         assert message.field == 'phone'
         assert message.expected == {
             'regex': r'\+[\d\(\)\+\- ]+',
-            'options': ['112']
+            'options': ['112'],
+            'case_sensitive': True,
+            'max': None,
+            'min': None
         }
     
     def test_it_accepts_a_string_in_a_list_of_case_insensitive_options(self):
@@ -89,7 +104,13 @@ class TestStringValidator:
 
         assert message.type == 'invalid_string_option'
         assert message.field == 'unit'
-        assert message.expected == ['SQm', 'SQft']
+        assert message.expected == {
+            'options': ['SQm', 'SQft'],
+            'case_sensitive': True,
+            'max': None,
+            'min': None,
+            'regex': None
+        }
     
     def test_it_accepts_a_string_in_a_list_of_case_insensitive_options_if_regex_doesnt_match(self):
         validate_string = StringValidator(regex=r'sq[a-z]+', options=['SQm', 'SQft'], case_sensitive=False)
@@ -105,14 +126,20 @@ class TestStringValidator:
 
         assert message is None
     
-    def test_it_rejects_a_string_longer_than_the_maximum_length(self):
+    def test_it_reports_a_string_longer_than_the_maximum_length(self):
         validate_string = StringValidator(max=5)
 
         message = validate_string('color', 'yellow')
 
         assert message.type == 'string_too_long'
         assert message.field == 'color'
-        assert message.expected == 5
+        assert message.expected == {
+            'max': 5,
+            'min': None,
+            'regex': None,
+            'options': None,
+            'case_sensitive': None
+        }
     
     def test_it_accepts_a_string_longer_than_the_minimum_length(self):
         validate_string = StringValidator(min=4)
@@ -121,14 +148,20 @@ class TestStringValidator:
 
         assert message is None
     
-    def test_it_rejects_a_string_shorter_than_the_minimum_length(self):
+    def test_it_reports_a_string_shorter_than_the_minimum_length(self):
         validate_string = StringValidator(min=4)
 
         message = validate_string('color', 'red')
 
         assert message.type == 'string_too_short'
         assert message.field == 'color'
-        assert message.expected == 4
+        assert message.expected == {
+            'min': 4,
+            'max': None,
+            'regex': None,
+            'options': None,
+            'case_sensitive': None
+        }
     
     def test_it_accepts_a_string_in_length_range_and_not_in_options(self):
         validate_string = StringValidator(min=2, max=5, options=['red', 'green', 'yellow'])
@@ -168,7 +201,9 @@ class TestStringValidator:
         assert message.expected == {
             'regex': r'#[0-9a-f]{6}',
             'min': 2,
-            'max': 6
+            'max': 6,
+            'options': None,
+            'case_sensitive': None
         }
     
     def test_it_reports_a_string_not_in_options_and_not_in_length_range(self):
@@ -181,7 +216,9 @@ class TestStringValidator:
         assert message.expected == {
             'options': ['red', 'green', 'blue'],
             'min': 2,
-            'max': 6
+            'max': 6,
+            'case_sensitive': True,
+            'regex': None
         }
     
     def test_it_reports_a_string_not_matching_a_regex_and_not_in_options_and_not_in_length_range(self):
@@ -193,7 +230,8 @@ class TestStringValidator:
         assert message.field == 'color'
         assert message.expected == {
             'regex': r'#[0-9a-f]{6}',
-            'options': ['red', 'green', 'blue'],
             'min': 2,
-            'max': 6
+            'max': 6,
+            'options': ['red', 'green', 'blue'],
+            'case_sensitive': True
         }

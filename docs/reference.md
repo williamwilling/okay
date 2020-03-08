@@ -157,11 +157,15 @@ If you provide both `regex` and `options`, the value must match either. In other
 
 The field doesn't match any of the allowed strings.
 
-Property   | Description
------------|------------
-`type`     | `invalid_string_option`
-`field`    | The name of the field that failed validation.
-`expected` | The list of acceptable strings.
+Property                  | Description
+--------------------------|------------
+`type`                    | `invalid_string_option`
+`field`                   | The name of the field that failed validation.
+`expected.options`        | The list of acceptable strings.
+`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't.
+`expected.max`            | Always `None` for this message type.
+`expected.min`            | Always `None` for this message type.
+`expected.regex`          | Always `None` for this message type.
 
 ### invalid_type
 
@@ -177,20 +181,15 @@ Property   | Description
 
 The field doesn't match the required regular expression.
 
-Property   | Description
------------|------------
-`type`     | `no_match`
-`field`    | The name of the field that failed validation.
-`expected` | The regular expression pattern the field should match.
-
-If you [provided both `regex` and `options`](#string) in your validation rule, the resulting message is slightly different.
-
-Property           | Description
--------------------|------------
-`type`             | `no_match`
-`field`            | The name of the field that failed validation.
-`expected.regex`   | The regular expression pattern the field should match.
-`expected.options` | The list of acceptable exceptions.
+Property                  | Description
+--------------------------|------------
+`type`                    | `no_match`
+`field`                   | The name of the field that failed validation.
+`expected.regex`          | The regular expression that the string should match.
+`expected.max`            | The maximum number of characters in the string, or `None` if not specified.
+`expected.min`            | The minimum number of characters in the string, or `None` if not specified.
+`expected.options`        | The list of acceptable strings, or `None` if not specified.
+`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
 
 ### null_value
 
@@ -221,6 +220,35 @@ Property   | Description
 `type`     | `number_too_small`
 `field`    | The name of the field that failed validation.
 `expected` | The minimum value allowed.
+
+
+### string_too_long
+
+The field contains string that consists of too many characters.
+
+Property                  | Description
+--------------------------|------------
+`type`                    | `string_too_long`
+`field`                   | The name of the field that failed validation.
+`expected.max`            | The maximum number of characters in the string.
+`expected.min`            | The minimum number of characters in the string, or `None` if not specified.
+`expected.options`        | The list of acceptable strings, or `None` if not specified.
+`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if the aren't, or `None` if options weren't specified.
+`expected.regex`          | Always `None` for this message type.
+
+### string_too_short
+
+The field contains a string that consists of too few characters.
+
+Property                  | Description
+--------------------------|------------
+`type`                    | `string_too_short`
+`field`                   | The name of the field that failed validation.
+`expected.min`            | The minimum number of characters in the string.
+`expected.max`            | The maximum number of characters in the string, or `None` if not specified.
+`expected.options`        | The list of acceptable strings, or `None` if not specified.
+`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
+`expected.regex`          | Always `None` for this message type.
 
 ### too_few_elements
 

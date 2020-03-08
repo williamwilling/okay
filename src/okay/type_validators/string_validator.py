@@ -23,6 +23,14 @@ class StringValidator:
                 expected='string'
             )
         
+        expected = {
+            'case_sensitive': self._case_sensitive if self._options else None,
+            'max': self._max,
+            'min': self._min,
+            'options': self._options,
+            'regex': self._pattern
+        }
+        
         pass_regex = self._regex.fullmatch(value) if self._regex else False
         pass_minimum = len(value) >= self._min if self._min else False
         pass_maximum = len(value) <= self._max if self._max else False
@@ -30,24 +38,6 @@ class StringValidator:
 
         if pass_regex or pass_options or (pass_minimum and pass_maximum):
             return
-
-        if self._options:
-            if self._case_sensitive:
-                in_options = value in self._options
-            else:
-                in_options = value.lower() in self._options
-
-        expected = {}
-        if self._regex: expected['regex'] = self._pattern
-        if self._options: expected['options'] = self._options
-        if self._min: expected['min'] = self._min
-        if self._max: expected['max'] = self._max
-
-        if len(expected) == 1:
-            if self._regex: expected = self._pattern
-            if self._options: expected = self._options
-            if self._min: expected = self._min
-            if self._max: expected = self._max
 
         if self._regex and not pass_regex:
             return Message(
@@ -76,3 +66,8 @@ class StringValidator:
                 field=field,
                 expected=expected
             )
+        
+        # If we reach this point, the validator didn't receive any parameters, so we only need to
+        # validate the type, and we already did that at the beginning of this function. In other
+        # words, everything is fine.
+        return
