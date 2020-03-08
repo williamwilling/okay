@@ -259,7 +259,8 @@ Property   | Description
 -----------|------------
 `type`     | `too_few_elements`
 `field`    | The name of the field that failed validation.
-`expected` | The minimum number of elements the list should have.
+`expected.min` | The minimum number of elements the list should have.
+`expected.max` | The maximum number of elements the list should have, or `None` if not specified.
 
 ### too_many_elements
 
@@ -269,4 +270,5 @@ Property   | Description
 -----------|------------
 `type`     | `too_many_elements`
 `field`    | The name of the field that failed validation.
-`expected` | The maximum number of elements the list may have.
+`expected.max` | The maximum number of elements the list should have.
+`expected.min` | The minimum number of elements the list should have, or `None` if not specified.
