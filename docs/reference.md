@@ -17,7 +17,7 @@
   * [object](#object)
   * [string](#string)
 * [Validaton messages](#validation-messages)
-  * [invalid_option](#invalid_option)
+  * [invalid_string_option](#invalid_string_option)
   * [invalid_type](#invalid_type)
   * [no_match](#no_match)
   * [null_value](#null_value)
@@ -88,7 +88,7 @@ Property | Description
 
 ### SchemaError
 
-The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](#user-guide.md#custom-validators), or an invalid [validation type](#type-validators). If `SchemaError` was raised in response to another exception, that other exception is available from the `__cause__` property of the `SchemaError` instance.
+The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](user-guide.md#custom-validators), or an invalid [validation type](#type-validators). If `SchemaError` was raised in response to another exception, that other exception is available from the `__cause__` property of the `SchemaError` instance.
 
 ## Type validators
 
@@ -102,7 +102,7 @@ The value must be a boolean, i.e. either `True` or `False`.
 
 ### custom
 
-The value must pass validation as specified by a custom validator. This is useful when Okay's provided type validators don't fit your use case and you want to write your own validation logic.
+The value must pass validation as specified by a [custom validator](user-guide.md#custom-validators). This is useful when Okay's provided type validators don't fit your use case and you want to write your own validation logic.
 
 Parameter | Description
 -----------|------------
@@ -147,9 +147,11 @@ Parameter | Description
 ----------|------------
 `regex`   | The regular expression pattern that the value must match.
 `options` | A list of allowed values. The value must exactly match one of the options.
+`min`     | The smallest allowed number of characters in the string.
+`max`     | The largest allowed number of characters in the string.
 `case_sensitive` | `True` if options are case sensitive, `False` otherwise. Default is `True`. Note that `case_sensitive` doesn't apply to regular expressions. If you want your regular expression to be case insensitive, add the [inline flag](https://docs.python.org/3/library/re.html#index-15) `(?i)` to your pattern.
 
-If you provide both `regex` and `options`, the value must match either. In other words, `options` are considered exceptions to the `regex`. If the value doesn't match `regex` and is not in `options`, the resulting validation message is [`no_match`](#no_match).
+If a value matches one of the `options`, it is valid regardless of what `regex`, `min`, and `max` specify. If a value matches `regex`, it is valid regardless of what `min` and `max` specify.
 
 ## Validation messages
 

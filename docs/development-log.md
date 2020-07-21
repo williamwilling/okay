@@ -823,7 +823,7 @@ Now that I've decided to remove the sources and the sinks, and the readers and t
 
 ### Syntax improvements
 
-I'm still happy with the syntax. The only improvement I'd like to make, is to get rid off the need to repeat `validator.` all the time. I've known since the start how to do that; I just haven't written in down yet. We can solve the problem by wrapping the schema in a class that forwards calls to `required` and `optional` to the validator. It will turn a schema like this:
+I'm still happy with the syntax. The only improvement I'd like to make, is to get rid off the need to repeat `validator.` all the time. I've known since the start how to do that; I just haven't written it down yet. We can solve the problem by wrapping the schema in a class that forwards calls to `required` and `optional` to the validator. It will turn a schema like this:
 
 ```python
 def schema(validator):
@@ -981,7 +981,7 @@ It's a bit iffy to have one class that can behave in two different ways, but it 
 
 ## No Schema-class
 
-My idea of [improving the syntax of a schema using a convenience class](#syntax-improvements) isn't going to work. I forgot that Python always requires explicit `self`. The upside of this is that it forced me to come up with another way to simplify the syntax and I can do that for the regular schema function by adding functions like `required()` and `optional()` to the schema functions globals. No more `Schema`-class necessary!
+My idea of [improving the syntax of a schema using a convenience class](#syntax-improvements) isn't going to work. I forgot that Python always requires explicit `self`. The upside of this is that it forced me to come up with another way to simplify the syntax and I can do that for the regular schema function by adding functions like `required()` and `optional()` to the schema function's globals. No more `Schema`-class necessary!
 
 The only downside seems to be that my code environment now flags the validator functions as undefined and either I'm stuck with squiggly lines all over my schema, or I have to disable the warning outright. I'll accept this downside, because the schema code is joyfully simple right now.
 
@@ -1124,7 +1124,7 @@ print(messages)
 
 In this case, both fields pass validation, because there's no check done against the type of the value. This behavior is not by design; it's just a by-product of the current implementation. It's also not very intuitive. So, time to add proper support for nullable values. I need two questions answered: how do you indicate a field is nullable, and what should the default be?
 
-Before I get to answering those questions, a note about the term _nullable_. Python doesn't have null-values, it has None-values, so maybe we should talk about noneable fields. However, the validator is supposed to be document format agnostic (which is also the reason types don't conform to any specific language or format). `null` is far more common than `None`, so I prefer the term _nullable_ over _noneable_ or any other variant.
+Before I get to answering those questions, a note about the term _nullable_. Python doesn't have null-values, it has None-values, so maybe we should talk about noneable fields. However, the validator is supposed to be document-format agnostic (which is also the reason types don't conform to any specific language or format). `null` is far more common than `None`, so I prefer the term _nullable_ over _noneable_ or any other variant.
 
 ### Default nullability
 
@@ -1150,7 +1150,7 @@ document = {
 
 I don't see a clear-cut solution here. Personally, for an object like `author`, I have no problem with accepting null by default, but for a type like `int` it feels weird. That probably has more to do with years of programming in C and C++ than with any objective argument, though. Also, having the default depend on the type is bound to be confusing.
 
-What is the safer option? Well, by default, don't accept null. You forget to specify nullability, all your documents fail, but you inspect the problem and fix your schema. If, on the other hand, nullable is the default, fields that shouldn't be null but are still pass validation and you'll never know.
+What is the safer option? Well, by default, don't accept null. You forget to specify nullability, all your documents fail, but you inspect the problem and fix your schema. If, on the other hand, nullable is the default, fields that shouldn't be null but are, still pass validation and you'll never know.
 
 A practical consideration: not all formats make the distinction between fields that are absent and fields that are null. Avro and CSV, for example, don't. When you convert documents in these formats to a Python dictionary, you can either leave out the empty fields, or add them with a `None` value. If you leave them out, the nullability doesn't matter. If you make them `None`, they will all fail validation unless they're nullable by default.
 
@@ -1247,7 +1247,7 @@ def schema():
 
 Well, that does it: we need to be able to specify nullability without type, so a parameter it will be.
 
-Hold on, I may have thought of a way to make typeless specifications works using the modified type! It's simmple really: introduce a type that says you don't care about the type. If the type is `any`, you don't care about the value as long as it isn't null. If the type is `any?`, it can be anything, including null. The previous example would then look like this.
+Hold on, I may have thought of a way to make typeless specifications work using the modified type! It's simple really: introduce a type that says you don't care about the type. If the type is `any`, you don't care about the value as long as it isn't null. If the type is `any?`, it can be anything, including null. The previous example would then look like this.
 
 ```python
 def schema():
