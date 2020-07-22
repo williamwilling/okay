@@ -48,6 +48,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
   * [Reporting null-values](#reporting-null-values)
 * [Validating string length](#validating-string-length)
   * [Validation messages for strings](#validation-messages-for-strings)
+* [Custom validation for entire documents](#custom-validation-for-entire-documents)
 
 ## Background
 
@@ -1451,3 +1452,22 @@ I think the order of priority I described in the beginning is a sensible solutio
 That looks about right. I changed `invalid_option` to `invalid_string_option` so I can add an `option` parameter to other validation types as well. (This is a breaking change.) I also swapped the priority of `options` and `min`/`max`, because judging from the example I picked, it makes more sense to consider options exceptions to the specified range than the other way around. (This is not a breaking change, because string length validation is still a new feature at this point.)
 
 `missing_field`, `extra_field`, and `null_value` don't have an `expected` field at all, since it wouldn't have any meaning. Custom validators can add pretty much anything they want, but I think `expected` should contain all the parameters the validator can handle, just like with any other validator. If a (custom) validator doesn't expect any parameters, `expected` should be an empty object, for consistency.
+
+## Custom validation for entire documents
+
+At the moment, the user guide contains a note that doesn't sit well with me.
+
+> You can also use custom validators to validate fields that depend on each other, *as long as they aren't top-level fields.*
+
+You should definitely be able to access top-level fields in custom validators. The problem is that there's currently no syntax for it, so let's make one up.
+
+```python
+def schema():
+    required('.', type='custom', validator=just_let_me_handle_the_entire_document)
+```
+
+Using `.` to specify the root level makes so much sense to me that I don't see a need to consider alternatives. I do think I need to think through some edge cases, though. For example, what would it mean to make the root level optional? Or nullable? Can you use the other type validators as well?
+
+By default, the root is an object; I still think that makes sense. If instead you explicitely make it a number or a list or a string, I guess that's fine. In the same vein, if you really want to allow the root to be `None`, I don't see why the library should stop you. 
+
+Making the root optional doesn't really have a meaning: either it's `None` or it has a value. But what if someone still does it? We could make it accept `None`, but then it would be the only exception to the rule that fields, optional or otherwise, are non-nullable by default. We could say that the root level can't be optional and throw a `SchemaError`. We could also not care and treat `required()` and `optional()` the same in this case. The benefit of throwing an exception is that it won't be a breaking change if we change it later. Let's go with that.
