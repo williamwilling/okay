@@ -159,118 +159,118 @@ If a value matches one of the `options`, it is valid regardless of what `regex`,
 
 The field doesn't match any of the allowed strings.
 
-Property                  | Description
---------------------------|------------
-`type`                    | `invalid_string_option`
-`field`                   | The name of the field that failed validation.
-`expected.options`        | The list of acceptable strings.
-`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't.
-`expected.max`            | Always `None` for this message type.
-`expected.min`            | Always `None` for this message type.
-`expected.regex`          | Always `None` for this message type.
+Property                     | Description
+-----------------------------|------------
+`type`                       | `invalid_string_option`
+`field`                      | The name of the field that failed validation.
+`expected['options']`        | The list of acceptable strings.
+`expected['case_sensitive']` | `True` if the options are case-sensitive, `False` if they aren't.
+`expected['max']`            | Always `None` for this message type.
+`expected['min']`            | Always `None` for this message type.
+`expected['regex']`          | Always `None` for this message type.
 
 ### invalid_type
 
 The field doesn't match the specified type.
 
-Property        | Description
-----------------|------------
-`type`          | `invalid_type`
-`field`         | The name of the field that failed validation.
-`expected.type` | The name of the type the field should have.
+Property           | Description
+-------------------|------------
+`type`             | `invalid_type`
+`field`            | The name of the field that failed validation.
+`expected['type']` | The name of the type the field should have.
 
 ### no_match
 
 The field doesn't match the required regular expression.
 
-Property                  | Description
---------------------------|------------
-`type`                    | `no_match`
-`field`                   | The name of the field that failed validation.
-`expected.regex`          | The regular expression that the string should match.
-`expected.max`            | The maximum number of characters in the string, or `None` if not specified.
-`expected.min`            | The minimum number of characters in the string, or `None` if not specified.
-`expected.options`        | The list of acceptable strings, or `None` if not specified.
-`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
+Property                     | Description
+-----------------------------|------------
+`type`                       | `no_match`
+`field`                      | The name of the field that failed validation.
+`expected['regex']`          | The regular expression that the string should match.
+`expected['max']`            | The maximum number of characters in the string, or `None` if not specified.
+`expected['min']`            | The minimum number of characters in the string, or `None` if not specified.
+`expected['options']`        | The list of acceptable strings, or `None` if not specified.
+`expected['case_sensitive']` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
 
 ### null_value
 
 The fields contains `null`, even though it's not allowed to.
 
-Property   | Description
------------|------------
-`type`     | `null_value`
-`field`    | The name of the field that failed validation.
-`expected` | The expected type of the field. Only present if a type was specified for the field.
+Property           | Description
+-------------------|------------
+`type`             | `null_value`
+`field`            | The name of the field that failed validation.
+`expected['type']` | The expected type of the field. Only present if a type was specified for the field.
 
 ### number_too_large
 
 The field contains a number larger than the allowed maximum.
 
-Property   | Description
------------|------------
-`type`     | `number_too_large`
-`field`    | The name of the field that failed validation.
-`expected.max` | The maximum value allowed.
-`expected.min` | The minimum value allowed, or `None` if not specified.
+Property          | Description
+------------------|------------
+`type`            | `number_too_large`
+`field`           | The name of the field that failed validation.
+`expected['max']` | The maximum value allowed.
+`expected['min']` | The minimum value allowed, or `None` if not specified.
 
 ### number_too_small
 
 The field contains a number smaller than the allowed minimum.
 
-Property   | Description
------------|------------
-`type`     | `number_too_small`
-`field`    | The name of the field that failed validation.
-`expected.max` | The maximum value allowed, or `None` if not specified.
-`expected.min` | The minimum value allowed.
+Property          | Description
+------------------|------------
+`type`            | `number_too_small`
+`field`           | The name of the field that failed validation.
+`expected['max']` | The maximum value allowed, or `None` if not specified.
+`expected['min']` | The minimum value allowed.
 
 ### string_too_long
 
 The field contains string that consists of too many characters.
 
-Property                  | Description
---------------------------|------------
-`type`                    | `string_too_long`
-`field`                   | The name of the field that failed validation.
-`expected.max`            | The maximum number of characters in the string.
-`expected.min`            | The minimum number of characters in the string, or `None` if not specified.
-`expected.options`        | The list of acceptable strings, or `None` if not specified.
-`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if the aren't, or `None` if options weren't specified.
-`expected.regex`          | Always `None` for this message type.
+Property                     | Description
+-----------------------------|------------
+`type`                       | `string_too_long`
+`field`                      | The name of the field that failed validation.
+`expected['max']`            | The maximum number of characters in the string.
+`expected['min']`            | The minimum number of characters in the string, or `None` if not specified.
+`expected['options']`        | The list of acceptable strings, or `None` if not specified.
+`expected['case_sensitive']` | `True` if the options are case-sensitive, `False` if the aren't, or `None` if options weren't specified.
+`expected['regex']`          | Always `None` for this message type.
 
 ### string_too_short
 
 The field contains a string that consists of too few characters.
 
-Property                  | Description
---------------------------|------------
-`type`                    | `string_too_short`
-`field`                   | The name of the field that failed validation.
-`expected.min`            | The minimum number of characters in the string.
-`expected.max`            | The maximum number of characters in the string, or `None` if not specified.
-`expected.options`        | The list of acceptable strings, or `None` if not specified.
-`expected.case_sensitive` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
-`expected.regex`          | Always `None` for this message type.
+Property                     | Description
+-----------------------------|------------
+`type`                       | `string_too_short`
+`field`                      | The name of the field that failed validation.
+`expected['min']`            | The minimum number of characters in the string.
+`expected['max']`            | The maximum number of characters in the string, or `None` if not specified.
+`expected['options']`        | The list of acceptable strings, or `None` if not specified.
+`expected['case_sensitive']` | `True` if the options are case-sensitive, `False` if they aren't, or `None` if options weren't specified.
+`expected['regex']`          | Always `None` for this message type.
 
 ### too_few_elements
 
 The list contains fewer elements than the allowed minimum.
 
-Property   | Description
------------|------------
-`type`     | `too_few_elements`
-`field`    | The name of the field that failed validation.
-`expected.min` | The minimum number of elements the list should have.
-`expected.max` | The maximum number of elements the list should have, or `None` if not specified.
+Property          | Description
+------------------|------------
+`type`            | `too_few_elements`
+`field`           | The name of the field that failed validation.
+`expected['min']` | The minimum number of elements the list should have.
+`expected['max']` | The maximum number of elements the list should have, or `None` if not specified.
 
 ### too_many_elements
 
 The list contains more elements than the allowed maximum.
 
-Property   | Description
------------|------------
-`type`     | `too_many_elements`
-`field`    | The name of the field that failed validation.
-`expected.max` | The maximum number of elements the list should have.
-`expected.min` | The minimum number of elements the list should have, or `None` if not specified.
+Property          | Description
+------------------|------------
+`type`            | `too_many_elements`
+`field`           | The name of the field that failed validation.
+`expected['max']` | The maximum number of elements the list should have.
+`expected['min']` | The minimum number of elements the list should have, or `None` if not specified.
