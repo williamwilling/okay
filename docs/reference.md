@@ -40,12 +40,12 @@ You use `optional()` inside a [schema definition](user-guide.md#writing-a-schema
 
 `optional()` has no return value.
 
-Parameter | Description
-----------|------------
+Parameter   | Description
+------------|------------
 `field`     | Required. The name of the field you want to validate. You can specify [nested fields](user-guide.md#nested-fields) using the `.` separator, e.g. `author.last_name`. You can specify [list elements](user-guide.md#lists) using the `[]` suffix, e.g. `genres[]`.
 `type`      | Optional. The [type](#type-validators) the field should have.
 
-Depending on the [type](#type-validators) you specify, you can pass extra named parameters to `optional()`. For example, if a field is of type `string`, you can pass a `regex` parameter.
+Depending on the [type](#type-validators) you specify, you can pass extra named parameters to `optional()`. For example, if a field is of type `string`, you can pass a `regex` parameter. You should not use parameters that aren't documented for the type validator, because later versions of Okay may introduce new parameters and they won't be considered a breaking change.
 
 ### required
 
@@ -58,7 +58,7 @@ Parameter | Description
 `field`   | Required. The name of the field you want to validate. You can specify [nested fields](user-guide.md#nested-fields) using the `.` separator, e.g. `author.last_name`. You can specify [list elements](user-guide.md#lists) using the `[]` suffix, e.g. `genres[]`.
 `type`    | Optional. The [type](#type-validators) the field should have.
 
-Depending on the [type](#type-validators) you specify, you can pass extra named parameters to `optional()`. For example, if a field is of type `string`, you can pass a `regex` parameter.
+Depending on the [type](#type-validators) you specify, you can pass extra named parameters to `optional()`. For example, if a field is of type `string`, you can pass a `regex` parameter. You should not use parameters that aren't documented for the type validator, because later versions of Okay may introduce new parameters and they won't be considered a breaking change.
 
 ### validate
 
@@ -66,10 +66,10 @@ Runs the validator on the specified document using the specified schema.
 
 `validate()` returns a list of `Message` objects, where each object indicates a validation error in the document.
 
-Parameter | Description
-----------|------------
-`schema`  | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts no parameters and returns no value. Okay gives no guarantees about when or how often this function will be called.
-`document` | Required. The document you want to validate. This must be a `dict`.
+Parameter        | Description
+-----------------|------------
+`schema`         | Required. The [schema definition](user-guide.md#writing-a-schema). This must be a function that accepts no parameters and returns no value. Okay gives no guarantees about when or how often this function will be called.
+`document`       | Required. The document you want to validate. This must be a `dict`.
 `message_values` | Optional. A dictionary with key-value pairs that the validator will add to all `Message` objects it produces.
 
 ## Classes
@@ -80,17 +80,19 @@ Represents a validation message, giving information about a validation error.
 
 Each `Message` object has a `type` property, but beyond that, the available properties depend on the [validation message type](#validation-messages). The table below lists properties used by Okay, but custom validation messages may contain any property.
 
-Property | Description
----------|------------
-`type`   | Required. A string indicating why validation failed. Okay uses a limited set of [validation message types](#validation-message), but you are free to create any type you want.
-`field`  | Optional. The name of the field that failed validation. This is present in all validation messages Okay produces, but you have the option to create a `Message` object without it, for example to indicate that a document failed to parse.
-`expected` | Optional. Indicates why a field failed to validate. For example, if a number is too large, `expected` will contain the maximum allowed value, and if a string doesn't match a regular expression, `expected` will contain the pattern the field must match.
+Property   | Description
+-----------|------------
+`type`     | Required. A string indicating why validation failed. Okay uses a limited set of [validation message types](#validation-message), but you are free to create any type you want.
+`field`    | Optional. The name of the field that failed validation. This is present in all validation messages Okay produces, but you have the option to create a `Message` object without it, for example to indicate that a document failed to parse.
+`expected` | Optional. Contains the original validation parameters. The exact content is different for each type of [validation message]((#validation-message)).
 
 ### SchemaError
 
 The exception raised when there's a problem with the [schema definition](user-guide.md#writing-a-schema), for example a bug in a [custom validator](user-guide.md#custom-validators), or an invalid [validation type](#type-validators). If `SchemaError` was raised in response to another exception, that other exception is available from the `__cause__` property of the `SchemaError` instance.
 
 ## Type validators
+
+You should not pass parameters that aren't listed here to type validators. Future versions of Okay may introduce new parameters, which is not considered a breaking change.
 
 ### any
 
@@ -104,36 +106,42 @@ The value must be a boolean, i.e. either `True` or `False`.
 
 The value must pass validation as specified by a [custom validator](user-guide.md#custom-validators). This is useful when Okay's provided type validators don't fit your use case and you want to write your own validation logic.
 
-Parameter | Description
------------|------------
-`validator` | Required. The function that will validate the value. It must accept two parameter: the field name and the field value. It must return `None` if validation succeeds or a [`Message`](#message) object if validation fails.
+Parameter   | Description
+------------|------------
+`validator` | Required. The function that will validate the value. It must accept two parameters: the field name and the field value. It must return `None` if validation succeeds or a [`Message`](#message) object if validation fails.
 
 ### int
 
 The value must be a whole number. In terms of Python types, any `int` will fit the bill, and it's also fine if the value is a `float`, as long as the fractional part is 0.
 
-Parameter | Description
+Parameter  | Description
 -----------|------------
 `min`      | The smallest allowed value.
 `max`      | The largest allowed value.
+
+If `min` is larger than `max`, the behavior of the type validator is undefined.
 
 ### list
 
 The value must be a list.
 
-Parameter | Description
+Parameter  | Description
 -----------|------------
 `min`      | The smallest allowed list size.
 `max`      | The largest allowed list size.
+
+If `min` is larger than `max`, the behavior of the type validator is undefined.
 
 ### number
 
 The value must be a number. In terms of Python types, any `int`, `float`, or `Decimal` will do.
 
-Parameter | Description
+Parameter  | Description
 -----------|------------
 `min`      | The smallest allowed value.
 `max`      | The largest allowed value.
+
+If `min` is larger than `max`, the behavior of the type validator is undefined.
 
 ### object
 
@@ -143,17 +151,30 @@ The value must be an object, i.e. a Python `dict`.
 
 The value must be a string. It's not good enough if the value can be converted to a string, it must actually be of type `str`.
 
-Parameter | Description
-----------|------------
-`regex`   | The regular expression pattern that the value must match.
-`options` | A list of allowed values. The value must exactly match one of the options.
-`min`     | The smallest allowed number of characters in the string.
-`max`     | The largest allowed number of characters in the string.
+Parameter        | Description
+-----------------|------------
+`regex`          | The regular expression pattern that the value must match.
+`options`        | A list of allowed values. The value must exactly match one of the options.
 `case_sensitive` | `True` if options are case sensitive, `False` otherwise. Default is `True`. Note that `case_sensitive` doesn't apply to regular expressions. If you want your regular expression to be case insensitive, add the [inline flag](https://docs.python.org/3/library/re.html#index-15) `(?i)` to your pattern.
+`max`            | The largest allowed length of the string.
+`min`            | The smallest allowed length of the string.
 
-If a value matches one of the `options`, it is valid regardless of what `regex`, `min`, and `max` specify. If a value matches `regex`, it is valid regardless of what `min` and `max` specify.
+If `min` is larger than `max`, the behavior of the type validator is undefined.
+
+A field is valid if it either is in range according to `min` and `max`, or it matches `regex`, or it matches one of the `options`. If a string fails validation, it will result in a [`no_match`](#no_match) message if `regex` is present, otherwise a [`string_too_short`](#string_too_short) or [`string_too_long`](#string_too_long) message if `min` or `max` are present, and otherwise an [`invalid_string_option`](#invalid_string_option) message.
+
+If you want the string to match all three checks, you should add them to your schema as three separate validation rules. For example:
+
+```python
+def schema():
+  required('color', type='string', options=['red', '#f00', '#ff0000'])  # it must be a pre-approved color
+  required('color', type='string', regex=r'#[\da-f]+')                  # it must be in hex format
+  required('color', type='string', min=4, max=4)                        # it must be in short format
+```
 
 ## Validation messages
+
+You should ignore any validation message field that isn't listed here. Future versions of Okay may add new fields to validation messages, which is not considered a breaking change.
 
 ### invalid_string_option
 
@@ -262,7 +283,7 @@ Property          | Description
 `type`            | `too_few_elements`
 `field`           | The name of the field that failed validation.
 `expected['min']` | The minimum number of elements the list should have.
-`expected['max']` | The maximum number of elements the list should have, or `None` if not specified.
+`expected['max']` | The maximum number of elements the list may have, or `None` if not specified.
 
 ### too_many_elements
 
@@ -272,5 +293,5 @@ Property          | Description
 ------------------|------------
 `type`            | `too_many_elements`
 `field`           | The name of the field that failed validation.
-`expected['max']` | The maximum number of elements the list should have.
+`expected['max']` | The maximum number of elements the list may have.
 `expected['min']` | The minimum number of elements the list should have, or `None` if not specified.
