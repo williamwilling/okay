@@ -173,11 +173,11 @@ Property                  | Description
 
 The field doesn't match the specified type.
 
-Property   | Description
------------|------------
-`type`     | `invalid_type`
-`field`    | The name of the field that failed validation.
-`expected` | The name of the type the field should have.
+Property        | Description
+----------------|------------
+`type`          | `invalid_type`
+`field`         | The name of the field that failed validation.
+`expected.type` | The name of the type the field should have.
 
 ### no_match
 

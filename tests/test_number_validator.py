@@ -17,7 +17,9 @@ class TestNumberValidator:
 
         assert message.type == 'invalid_type'
         assert message.field == 'score'
-        assert message.expected == 'number'
+        assert message.expected == {
+            'type': 'number'
+        }
     
     def test_it_accepts_a_floating_point_number(self):
         validate_number = NumberValidator()

@@ -47,10 +47,11 @@ class Validator:
                     if not self._schema.fields[field_name].nullable:
                         message = Message(
                             type='null_value',
-                            field=field.path
+                            field=field.path,
+                            expected={}
                         )
                         if self._schema.fields[field_name].type is not None:
-                            message.add(expected=self._schema.fields[field_name].type)
+                            message.expected['type'] = self._schema.fields[field_name].type
 
                         self.messages.append(message)
                 else:

@@ -9,5 +9,7 @@ class BoolValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='bool'
+                expected={
+                    'type': 'bool'
+                }
             )

@@ -11,7 +11,9 @@ class IntValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='int'
+                expected={
+                    'type': 'int'
+                }
             )
         
         return self._validate_number(field, value, **kwargs)

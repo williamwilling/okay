@@ -11,7 +11,9 @@ class NumberValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='number'
+                expected={
+                    'type': 'number'
+                }
             )
         
         value = Decimal(value)

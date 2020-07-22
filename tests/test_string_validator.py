@@ -15,7 +15,9 @@ class TestStringValidator:
 
         assert message.type == 'invalid_type'
         assert message.field == 'city'
-        assert message.expected == 'string'
+        assert message.expected == {
+            'type': 'string'
+        }
     
     def test_it_accepts_a_string_matching_a_regex(self):
         validate_string = StringValidator(regex=r'[\d\(\)\+\- ]+')

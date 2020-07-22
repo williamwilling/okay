@@ -15,7 +15,9 @@ class TestListValidator:
 
         assert message.type == 'invalid_type'
         assert message.field == 'rooms'
-        assert message.expected == 'list'
+        assert message.expected == {
+            'type': 'list'
+        }
     
     def test_it_accepts_a_list_with_at_least_minimum_elements(self):
         validate_list = ListValidator(min=1)

@@ -118,7 +118,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
     
     def test_it_reports_if_field_with_list_as_parent_is_missing(self):
         def schema():
@@ -153,7 +155,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation.ratings[1]'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
     
     def test_it_skips_nested_field_if_required_parent_is_missing(self):
         def schema():
@@ -187,7 +191,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_an_optional_object_with_the_correct_type(self):
         def schema():
@@ -209,7 +215,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'trace'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_a_value_with_custom_type(self):
         def schema():
@@ -288,7 +296,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'scores[1]'
-        assert message.expected == 'number'
+        assert message.expected == {
+            'type': 'number'
+        }
     
     def test_it_accepts_valid_objects_in_a_list(self):
         def schema():
@@ -326,7 +336,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation.ratings[1].score'
-        assert message.expected == 'number'
+        assert message.expected == {
+            'type': 'number'
+        }
         message = messages[1]
         assert message.type == 'number_too_large'
         assert message.field == 'accommodation.ratings[2].score'
@@ -377,7 +389,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'ratings[1]'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_a_list_of_scalars_inside_a_list_of_objects(self):
         def schema():
@@ -420,7 +434,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'scores'
-        assert message.expected == 'list'
+        assert message.expected == {
+            'type': 'list'
+        }
     
     def test_it_reports_missing_nested_list(self):
         def schema():
@@ -437,7 +453,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'facilities[0].subtype'
-        assert message.expected == 'list'
+        assert message.expected == {
+            'type': 'list'
+        }
     
     def test_it_reports_invalid_value_in_nested_list(self):
         def schema():
@@ -458,7 +476,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'invalid_type'
         assert message.field == 'rooms[0].facilities[1].type'
-        assert message.expected == 'string'
+        assert message.expected == {
+            'type': 'string'
+        }
     
     def test_it_accepts_a_nested_list_of_scalars(self):
         def schema():
@@ -775,7 +795,9 @@ class TestValidator:
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'metadata'
-        assert messages[0].expected == 'object'
+        assert messages[0].expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_a_required_nullable_null_value(self):
         def schema():
@@ -796,7 +818,9 @@ class TestValidator:
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'metadata'
-        assert messages[0].expected == 'object'
+        assert messages[0].expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_a_typeless_nullable_null_value(self):
         def schema():
@@ -817,7 +841,9 @@ class TestValidator:
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'metadata'
-        assert messages[0].expected == 'any'
+        assert messages[0].expected == {
+            'type': 'any'
+        }
     
     def test_it_rejects_required_null_value_by_default(self):
         def schema():
@@ -828,7 +854,7 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
-        assert 'expected' not in messages[0].__dict__
+        assert 'type' not in messages[0].expected
     
     def test_it_rejects_optional_null_value_by_default(self):
         def schema():
@@ -839,7 +865,7 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
-        assert 'expected' not in messages[0].__dict__
+        assert 'type' not in messages[0].expected
     
     def test_it_raises_when_nullable_field_is_already_non_nullable(self):
         def schema():
@@ -947,7 +973,9 @@ class TestValidator:
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'author'
-        assert messages[0].expected == 'object'
+        assert messages[0].expected == {
+            'type': 'object'
+        }
     
     def test_it_accepts_nullable_object_after_implicit_object(self):
         def schema():
@@ -980,7 +1008,9 @@ class TestValidator:
         message = messages[0]
         assert message.type == 'null_value'
         assert message.field == 'accommodation'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
 
 
 def empty_schema():

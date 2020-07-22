@@ -20,7 +20,9 @@ class StringValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='string'
+                expected={
+                    'type': 'string'
+                }
             )
         
         expected = {

@@ -10,7 +10,9 @@ class ListValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='list'
+                expected={
+                    'type': 'list'
+                }
             )
         
         expected = {

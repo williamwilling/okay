@@ -15,4 +15,6 @@ class TestBooleanValidator:
         
         assert message.type == 'invalid_type'
         assert message.field == 'has_bathroom'
-        assert message.expected == 'bool'
+        assert message.expected == {
+            'type': 'bool'
+        }

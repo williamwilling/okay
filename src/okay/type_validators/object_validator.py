@@ -9,5 +9,7 @@ class ObjectValidator:
             return Message(
                 type='invalid_type',
                 field=field,
-                expected='object'
+                expected={
+                    'type': 'object'
+                }
             )

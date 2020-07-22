@@ -19,4 +19,6 @@ class TestObjectValidator:
 
         assert message.type == 'invalid_type'
         assert message.field == 'accommodation'
-        assert message.expected == 'object'
+        assert message.expected == {
+            'type': 'object'
+        }
