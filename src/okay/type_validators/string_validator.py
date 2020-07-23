@@ -32,10 +32,10 @@ class StringValidator:
             'options': self._options,
             'regex': self._pattern
         }
-        
+
         pass_regex = self._regex.fullmatch(value) if self._regex is not None else False
-        pass_minimum = len(value) >= self._min if self._min is not None else False
-        pass_maximum = len(value) <= self._max if self._max is not None else False
+        pass_minimum = len(value) >= self._min if self._min is not None else self._max is not None
+        pass_maximum = len(value) <= self._max if self._max is not None else self._min is not None
         pass_options = (value in self._options) or (not self._case_sensitive and value.lower() in self._options) if self._options is not None else False
 
         if pass_regex or pass_options or (pass_minimum and pass_maximum):

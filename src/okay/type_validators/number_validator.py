@@ -51,3 +51,8 @@ class NumberValidator:
                 field=field,
                 expected=expected
             )
+
+        # If we reach this point, the validator didn't receive any parameters, so we only need to
+        # validate the type, and we already did that at the beginning of this function. In other
+        # words, everything is fine.
+        return
