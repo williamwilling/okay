@@ -339,7 +339,8 @@ class TestValidator:
         assert message.field == 'accommodation.ratings[2].score'
         assert message.expected == {
             'max': 5,
-            'min': None
+            'min': None,
+            'options': None
         }
     
     def test_it_reports_object_with_missing_fields_in_a_list(self):

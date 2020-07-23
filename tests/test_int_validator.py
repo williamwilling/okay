@@ -43,3 +43,10 @@ class TestIntValidator:
         message = validate_int('score', 3)
         
         assert message is None
+    
+    def test_it_accepts_an_int_in_a_list_of_options(self):
+        validate_int = IntValidator(options=[1, 3, 5])
+
+        message = validate_int('score', 5)
+
+        assert message is None
