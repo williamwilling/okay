@@ -49,6 +49,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
 * [Validating string length](#validating-string-length)
   * [Validation messages for strings](#validation-messages-for-strings)
 * [Custom validation for entire documents](#custom-validation-for-entire-documents)
+* [Parents that are null](#parents-that-are-null)
 
 ## Background
 
@@ -1471,3 +1472,51 @@ Using `.` to specify the root level makes so much sense to me that I don't see a
 By default, the root is an object; I still think that makes sense. If instead you explicitely make it a number or a list or a string, I guess that's fine. In the same vein, if you really want to allow the root to be `None`, I don't see why the library should stop you. 
 
 Making the root optional doesn't really have a meaning: either it's `None` or it has a value. But what if someone still does it? We could make it accept `None`, but then it would be the only exception to the rule that fields, optional or otherwise, are non-nullable by default. We could say that the root level can't be optional and throw a `SchemaError`. We could also not care and treat `required()` and `optional()` the same in this case. The benefit of throwing an exception is that it won't be a breaking change if we change it later. Let's go with that.
+
+## Parents that are null
+
+What happens if a parent field is null? This is something I ran into while implementing root level validation, but it is an issue for fields at any level. Consider the basic problem.
+
+```python
+def schema():
+    required('author.name')
+
+document = { 'author': None }
+validate(schema, document)
+```
+
+Which validation messages should we get? There are two candidates: `null_value` for `author`, and `missing_field` for `author.name`. `author` is non-nullable, so you can't leave out `null_value`, but what about `missing_field`? Remember that `required` on a field means: required _if_ the parent exists. Here you could argue that the parent doesn't exist. Also, you already get a message, so it's not like the error would go unnoticed. Leaving out `missing_field` might prevent a lot of noise. On the other hand, you really expect that field to be there and it isn't. What if the parent is nullable?
+
+```python
+def schema():
+    required('author', type='object?')
+    required('author.name')
+
+document = { 'author': None }
+validate(schema, document)
+```
+
+If you write a schema like this, it seems to me that you don't consider the given document to be invalid, so this example should pass validation. How about if the parent is nullable, but not an object?
+
+```python
+def schema():
+    required('author', type='string?')
+    required('author.name')
+
+document = { 'author': None }
+validate(schema document)
+```
+
+This schema is just wrong. The first validation rule says that `author` is of type `string` and the second validation rule (implicitly) says that `author` is of type `object`. The second validation rule has to fail, but should it report `invalid_type` on `author`, `missing_field` on `author.name`, or both?
+
+You could also argue that this schema shouldn't be accepted at all and that the validator should raise `SchemaError`. Until now, I've held the opinion that a schema is allowed to be nonsensical, as long as it is not impossible. So, a field can't both be required and optional, because there's no way for the validator to resolve that amibiguity, but it's fine if a field needs to be both a number and a string. This will always result in validation failure, but the validator doesn't care about that. Also, there are situations where it's useful to give a field multiple types, for example when one of them is `custom`. In the future, there may be other types where this is helpful as well, for example when a field is both a string and a URL.
+
+```python
+def schema():
+    required('index', type='url')
+    required('index', type='string', regex=r'sort=asc')
+```
+
+All of this to say that I'd rather not throw `SchemaError`, despite the fact that `author` can't be both a string and have children.
+
+Going back to the first example, if the parent is a non-nullable object, but it is `null` nonetheless, the more predictable option is to report both `null_value` and `missing_field`. If `author` has a lot of children, this will lead to a lot of messages, but I think that's better than leaving the user of the library guessing as to which validation messages we exclude for the sake of conciseness. In the same vein, we should then also report both `invalid_type` and `missing_field` when the parent is a nullable non-object.
