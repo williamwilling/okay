@@ -5,9 +5,6 @@ from .schema_compiler import compile, required, optional, ignore_extra_fields
 from .schema_error import SchemaError
 
 def validate(schema, document, message_values=None):
-    if not isinstance(document, dict):
-        raise TypeError('Document must be dictionary.')
-
     _validator._reset(schema, document)
     _validator._validate()
     _validator._report_missing_fields()
@@ -73,21 +70,17 @@ class Validator:
     def _report_missing_fields(self):
         for field_name, field in self._schema.fields.items():
             if '.' not in field_name:
-                base_field_name = field_name.strip('[]')
-                if field.strictness == 'required' and base_field_name not in self._document:
-                    self.messages.append(Message(
-                        type='missing_field',
-                        field=field_name
-                    ))
+                parent_name = '.'
+                child_name = field_name
             else:
                 parent_name, child_name = field_name.rsplit('.', 1)
-                parent = self._index.fields.get(parent_name, [])
-                for parent_field in parent:
-                    if isinstance(parent_field.value, dict) and field.strictness == 'required' and child_name.strip('[]') not in parent_field.value:
-                        self.messages.append(Message(
-                            type='missing_field',
-                            field=parent_field.path + '.' + child_name
-                        ))
 
+            parent = self._index.fields.get(parent_name, [])
+            for parent_field in parent:
+                if isinstance(parent_field.value, dict) and field.strictness == 'required' and child_name.strip('[]') not in parent_field.value:
+                    self.messages.append(Message(
+                        type='missing_field',
+                        field=parent_field.path + '.' + child_name if parent_field.path != '.' else child_name
+                    ))
 
 _validator = Validator()

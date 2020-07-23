@@ -8,11 +8,6 @@ class TestValidator:
         messages = validate(empty_schema, document)
 
         assert messages == []
-
-    def test_it_raises_when_document_is_not_a_dictionary(self):
-        document = ''
-        with pytest.raises(TypeError):
-            validate(empty_schema, document)
     
     def test_it_reports_a_missing_required_top_level_field(self):
         def schema():
@@ -315,7 +310,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_invalid_objects_in_a_list(self):
+    def test_it_reports_invalid_objects_in_a_list(self):
         def schema():
             required('accommodation.ratings[].score', type='number', max=5)
         
@@ -347,7 +342,7 @@ class TestValidator:
             'min': None
         }
     
-    def test_it_rejects_object_with_missing_fields_in_a_list(self):
+    def test_it_reports_object_with_missing_fields_in_a_list(self):
         def schema():
             required('accommodation.ratings[].score', type='number')
         
@@ -363,7 +358,7 @@ class TestValidator:
         assert message.type == 'missing_field'
         assert message.field == 'accommodation.ratings[0].score'
     
-    def test_it_rejects_multiple_objects_with_missing_fields_in_a_list(self):
+    def test_it_reports_multiple_objects_with_missing_fields_in_a_list(self):
         def schema():
             required('accommodation.ratings[].score', type='number')
         
@@ -376,7 +371,7 @@ class TestValidator:
 
         assert len(messages) == 2
     
-    def test_it_rejects_non_objects_in_a_list(self):
+    def test_it_reports_non_objects_in_a_list(self):
         def schema():
             required('ratings[].aspect', type='string')
         
@@ -785,7 +780,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_an_optional_non_nullable_null_value(self):
+    def test_it_reports_an_optional_non_nullable_null_value(self):
         def schema():
             optional('metadata', type='object')
         
@@ -808,7 +803,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_a_required_non_nullable_null_value(self):
+    def test_it_reports_a_required_non_nullable_null_value(self):
         def schema():
             required('metadata', type='object')
         
@@ -831,7 +826,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_a_typeless_non_nullable_null_value(self):
+    def test_it_reports_a_typeless_non_nullable_null_value(self):
         def schema():
             optional('metadata', type='any')
         
@@ -845,7 +840,7 @@ class TestValidator:
             'type': 'any'
         }
     
-    def test_it_rejects_required_null_value_by_default(self):
+    def test_it_reports_required_null_value_by_default(self):
         def schema():
             required('metadata')
         
@@ -856,7 +851,7 @@ class TestValidator:
         assert messages[0].type == 'null_value'
         assert 'type' not in messages[0].expected
     
-    def test_it_rejects_optional_null_value_by_default(self):
+    def test_it_reports_optional_null_value_by_default(self):
         def schema():
             optional('metadata')
         
@@ -896,7 +891,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_non_nullable_list_elements(self):
+    def test_it_reports_non_nullable_list_elements(self):
         def schema():
             required('values[]', type='number')
         
@@ -951,7 +946,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_rejects_non_nullable_optional_list(self):
+    def test_it_reports_non_nullable_optional_list(self):
         def schema():
             optional('values[]')
             optional('values', type='list')
@@ -997,7 +992,7 @@ class TestValidator:
 
         assert messages == []
     
-    def test_it_reports_if_parent_field_is_null(self):
+    def test_it_reports_when_parent_field_is_null(self):
         def schema():
             required('accommodation.name')
         
@@ -1011,7 +1006,48 @@ class TestValidator:
         assert message.expected == {
             'type': 'object'
         }
+    
+    def test_it_raises_when_root_is_optional(self):
+        def schema():
+            optional('.')
+        
+        document = {}
+        
+        with pytest.raises(SchemaError):
+            validate(schema, document)
+    
+    def test_it_passes_root_to_custom_validator(self):
+        custom_value = None
+        def validate_root(field, value):
+            nonlocal custom_value
+            custom_value = value
 
+        def schema():
+            required('.', type='custom', validator=validate_root)
+
+        document = { 'author': 'Vikram Seth' }        
+        validate(schema, document)
+
+        assert custom_value == document
+
+    def test_it_accepts_a_number_as_root(self):
+        def schema():
+            required('.', type='number')
+        
+        document = 12.8
+        messages = validate(schema, document)
+
+        assert len(messages) == 0
+    
+    def test_it_accepts_nullable_root(self):
+        def schema():
+            required('.', type='any?')
+        
+        document = None
+        messages = validate(schema, document)
+
+        assert len(messages) == 0
+        
 
 def empty_schema():
     pass

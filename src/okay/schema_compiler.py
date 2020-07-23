@@ -28,6 +28,13 @@ def required(field_name, type=None, **kwargs):
     _process(field_name, type, is_required=True, **kwargs)
 
 def optional(field_name, type=None, **kwargs):
+    if field_name == '.':
+        raise SchemaError(
+            'Root cannot be optional.',
+            type='optional_not_allowed',
+            field='.'
+        )
+    
     _process(field_name, type, is_required=False, **kwargs)
 
 def ignore_extra_fields():
@@ -100,7 +107,9 @@ def _process(field_name, type, is_required, **kwargs):
                 type_validator.is_implicit = is_implicit
                 field.type_validators.append(type_validator)
 
-        if field_name.endswith('[]'):
+        if field_name == '.':
+            break
+        elif field_name.endswith('[]'):
             field_name = field_name[:-2]
             type = 'list'
             nullable = False
@@ -114,4 +123,9 @@ def _process(field_name, type, is_required, **kwargs):
             kwargs = {}
             is_implicit = True
         else:
-            break
+            field_name = '.'
+            strictness = 'required'
+            type = 'object'
+            nullable = False
+            kwargs = {}
+            is_implicit = True

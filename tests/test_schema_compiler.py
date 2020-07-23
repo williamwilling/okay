@@ -355,3 +355,14 @@ class TestSchemaCompiler:
 
         type_validators = compiled_schema.fields['accommodation.scores'].type_validators
         assert len(type_validators) == 1
+    
+    def test_it_raises_when_root_is_optional(self):
+        def schema():
+            optional('.')
+        
+        with pytest.raises(SchemaError) as exception_info:
+            compile(schema)
+        
+        exception = exception_info.value
+        assert exception.type == 'optional_not_allowed'
+        assert exception.field == '.'
