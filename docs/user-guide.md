@@ -312,7 +312,7 @@ def book_schema():
     optional('summary', type='custom', validator=is_capitalized)
 ```
 
-You can also use custom validators to validate fields that depend on each other, as long as they aren't top-level fields.
+You can also use custom validators to validate fields that depend on each other.
 
 ```python
 from okay import Message
@@ -334,6 +334,21 @@ def schema():
 ```
 
 Note in the custom validator above that it doesn't return a message when `range` is not a field or when the fields `min` and `max` are missing. It only validates the range if it is actually there. This is a good approach in general, because it keeps your options open when writing your schema. In this example, you now have the option to allow an open-ended range, i.e. a range with only a minimum or only a maximum. If you don't want to allow an open-ended range, you simply make `min` and `max` required, as shown above, but `valid_range` doesn't have to force this on you.
+
+If you pass the whole document to your custom validator, you can use the field name `.`.
+
+```python
+def schema():
+    def either_or(field, value):
+        if 'title' in value and 'name' in value:
+            return Message(
+                type='cannot_have_both_title_and_name',
+                field=field
+            )
+
+    required('.', type='custom', validator=either_or)
+}
+```
 
 ### Using regular code
 
