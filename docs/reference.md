@@ -17,6 +17,7 @@
   * [object](#object)
   * [string](#string)
 * [Validaton messages](#validation-messages)
+  * [invalid_number_option](#invalid_number_option)
   * [invalid_string_option](#invalid_string_option)
   * [invalid_type](#invalid_type)
   * [no_match](#no_match)
@@ -118,8 +119,19 @@ Parameter  | Description
 -----------|------------
 `min`      | The smallest allowed value.
 `max`      | The largest allowed value.
+`options`  | A list of allowed values. The value must exactly match one of the options.
 
 If `min` is larger than `max`, the behavior of the type validator is undefined.
+
+A field is valid if it either is in range according to `min` and `max`, or it matches one of the `options`. If an integer fails validation, it will result in a [`number_too_small`](#number_too_small) or [`number_too_large`](#number_too_large) message if `min` or `max` are present, and otherwise an [`invalid_number_option`](#invalid_number_option) message.
+
+If you want the integer to match both checks, you should add them to your schema as two separate validation rules. For example:
+
+```python
+def schema():
+  required('root', type='number', options=[x * x for x in range(1, 1000)])
+  required('root', type='number', min=100, max=20000)
+```
 
 ### list
 
@@ -140,8 +152,21 @@ Parameter  | Description
 -----------|------------
 `min`      | The smallest allowed value.
 `max`      | The largest allowed value.
+`options`  | A list of allowed values. The value must exactly match one of the options.
 
 If `min` is larger than `max`, the behavior of the type validator is undefined.
+
+A field is valid if it either is in range according to `min` and `max`, or it matches one of the `options`. If a number fails validation, it will result in a [`number_too_small`](#number_too_small) or [`number_too_large`](#number_too_large) message if `min` or `max` are present, and otherwise an [`invalid_number_option`](#invalid_number_option) message.
+
+If you want the number to match both checks, you should add them to your schema as two separate validation rules. For example:
+
+```python
+import math
+
+def schema():
+  required('square', type='number', options=[math.sqrt(x) for x in range(1, 1000)])
+  required('square', type='number', min=10, max=20)
+```
 
 ### object
 
@@ -175,6 +200,18 @@ def schema():
 ## Validation messages
 
 You should ignore any validation message field that isn't listed here. Future versions of Okay may add new fields to validation messages, which is not considered a breaking change.
+
+### invalid_number_option
+
+The field doesn't match any of the allowed numbers.
+
+Property                     | Description
+-----------------------------|------------
+`type`                       | `invalid_number_option`
+`field`                      | The name of the field that failed validation.
+`expected['options']`        | The list of acceptable numbers.
+`expected['max']`            | Always `None` for this message type.
+`expected['min']`            | Always `None` for this message type.
 
 ### invalid_string_option
 
@@ -228,23 +265,25 @@ Property           | Description
 
 The field contains a number larger than the allowed maximum.
 
-Property          | Description
-------------------|------------
-`type`            | `number_too_large`
-`field`           | The name of the field that failed validation.
-`expected['max']` | The maximum value allowed.
-`expected['min']` | The minimum value allowed, or `None` if not specified.
+Property              | Description
+----------------------|------------
+`type`                | `number_too_large`
+`field`               | The name of the field that failed validation.
+`expected['max']`     | The maximum value allowed.
+`expected['min']`     | The minimum value allowed, or `None` if not specified.
+`expected['options']` | The list of acceptable numbers, or `None` if not specified.
 
 ### number_too_small
 
 The field contains a number smaller than the allowed minimum.
 
-Property          | Description
-------------------|------------
-`type`            | `number_too_small`
-`field`           | The name of the field that failed validation.
-`expected['max']` | The maximum value allowed, or `None` if not specified.
-`expected['min']` | The minimum value allowed.
+Property              | Description
+----------------------|------------
+`type`                | `number_too_small`
+`field`               | The name of the field that failed validation.
+`expected['max']`     | The maximum value allowed, or `None` if not specified.
+`expected['min']`     | The minimum value allowed.
+`expected['options']` | The list of acceptable numbers, or `None` if not specified.
 
 ### string_too_long
 

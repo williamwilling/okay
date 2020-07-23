@@ -160,3 +160,10 @@ class TestNumberValidator:
         message = validate_number('score', 22)
 
         assert message is None
+    
+    def test_it_reports_when_number_is_not_in_a_list_of_options_and_out_of_range(self):
+        validate_number = NumberValidator(options=[1, 2, 3], min=4, max=5)
+
+        message = validate_number('score', 6)
+
+        assert message.type == 'number_too_large'
