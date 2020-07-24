@@ -77,6 +77,15 @@ class Validator:
 
             parent = self._index.fields.get(parent_name, [])
             for parent_field in parent:
+                if parent_field.value is None and self._schema.fields[parent_field.path].nullable:
+                    continue
+
+                if parent_field.value is None and field.strictness == 'required':
+                    self.messages.append(Message(
+                        type='missing_field',
+                        field=parent_field.path + '.' + child_name if parent_field.path != '.' else child_name
+                    ))
+
                 if isinstance(parent_field.value, dict) and field.strictness == 'required' and child_name.strip('[]') not in parent_field.value:
                     self.messages.append(Message(
                         type='missing_field',

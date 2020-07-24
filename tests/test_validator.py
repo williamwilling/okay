@@ -966,12 +966,14 @@ class TestValidator:
         document = { 'author': None }
         messages = validate(schema, document)
 
-        assert len(messages) == 1
+        assert len(messages) == 2
         assert messages[0].type == 'null_value'
         assert messages[0].field == 'author'
         assert messages[0].expected == {
             'type': 'object'
         }
+        assert messages[1].type == 'missing_field'
+        assert messages[1].field == 'author.name'
     
     def test_it_accepts_nullable_object_after_implicit_object(self):
         def schema():
@@ -992,22 +994,7 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert messages == []
-    
-    def test_it_reports_when_parent_field_is_null(self):
-        def schema():
-            required('accommodation.name')
-        
-        document = { 'accommodation': None }
-        messages = validate(schema, document)
 
-        assert len(messages) == 1
-        message = messages[0]
-        assert message.type == 'null_value'
-        assert message.field == 'accommodation'
-        assert message.expected == {
-            'type': 'object'
-        }
-    
     def test_it_raises_when_root_is_optional(self):
         def schema():
             optional('.')
@@ -1048,6 +1035,35 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert len(messages) == 0
+
+    def test_it_reports_a_null_parent_when_parent_is_a_non_nullable_object(self):
+        def schema():
+            required('author', type='object')
+            required('author.name')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 2
+        message = messages[0]
+        assert message.type == 'null_value'
+        assert message.field == 'author'
+        assert message.expected == {
+            'type': 'object'
+        }
+        message = messages[1]
+        assert message.type == 'missing_field'
+        assert message.field == 'author.name'
+    
+    def test_it_accepts_a_null_parent_when_parent_is_a_nullable_object(self):
+        def schema():
+            required('author', type='object?')
+            required('author.name')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert messages == []
         
 
 def empty_schema():
