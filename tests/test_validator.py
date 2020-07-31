@@ -850,7 +850,9 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
-        assert 'type' not in messages[0].expected
+        assert messages[0].expected == {
+            'type': 'any'
+        }
     
     def test_it_reports_optional_null_value_by_default(self):
         def schema():
@@ -861,7 +863,9 @@ class TestValidator:
 
         assert len(messages) == 1
         assert messages[0].type == 'null_value'
-        assert 'type' not in messages[0].expected
+        assert messages[0].expected == {
+            'type': 'any'
+        }
     
     def test_it_raises_when_nullable_field_is_already_non_nullable(self):
         def schema():
@@ -1064,6 +1068,23 @@ class TestValidator:
         messages = validate(schema, document)
 
         assert messages == []
+
+    def test_it_reports_a_null_parent_when_parent_is_a_nullable_non_object(self):
+        def schema():
+            required('author', type='string?')
+            required('author.name')
+        
+        document = { 'author': None }
+        messages = validate(schema, document)
+
+        assert len(messages) == 2
+        assert messages[0].type == 'null_value'
+        assert messages[0].field == 'author'
+        assert messages[0].expected == {
+            'type': 'object'
+        }
+        assert messages[1].type == 'missing_field'
+        assert messages[1].field == 'author.name'
         
 
 def empty_schema():

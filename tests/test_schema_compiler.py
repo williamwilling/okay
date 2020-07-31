@@ -1,7 +1,7 @@
 import pytest
 from okay import SchemaError, Message
 from okay.schema_compiler import required, optional, compile
-from okay.type_validators import IntValidator, ObjectValidator, CustomValidator, StringValidator, NumberValidator, ListValidator
+from okay.type_validators import AnyValidator, IntValidator, ObjectValidator, CustomValidator, StringValidator, NumberValidator, ListValidator
 
 class TestSchemaCompiler:
     def test_it_extracts_no_names_for_empty_schema(self):
@@ -251,20 +251,20 @@ class TestSchemaCompiler:
         assert exception.type == 'already_required'
         assert exception.field == 'accommodation.payment_methods'
     
-    def test_it_caches_the_type_validator(self):
+    def test_it_caches_the_validator(self):
         def schema():
             required('metadata.accommodation_id', type='int')
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['metadata.accommodation_id'].type_validators
-        assert len(type_validators) == 1
-        assert isinstance(type_validators[0], IntValidator)
-        type_validators = compiled_schema.fields['metadata'].type_validators
-        assert len(type_validators) == 1
-        assert isinstance(type_validators[0], ObjectValidator)
+        validators = compiled_schema.fields['metadata.accommodation_id'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, IntValidator)
+        validators = compiled_schema.fields['metadata'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, ObjectValidator)
     
-    def test_it_caches_multiple_type_validators_on_the_same_field(self):
+    def test_it_caches_multiple_validators_on_the_same_field(self):
         def schema():
             def validate_rating(field, value):
                 if field['out_of'] < field['score']:
@@ -279,42 +279,43 @@ class TestSchemaCompiler:
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['rating'].type_validators
-        assert len(type_validators) == 2
-        assert isinstance(type_validators[0], ObjectValidator)
-        assert isinstance(type_validators[1], CustomValidator)
+        validators = compiled_schema.fields['rating'].validators
+        assert len(validators) == 2
+        assert isinstance(validators[0].run, ObjectValidator)
+        assert isinstance(validators[1].run, CustomValidator)
     
-    def test_it_caches_the_type_validator_on_list_elements(self):
+    def test_it_caches_the_validator_on_list_elements(self):
         def schema():
             required('accommodation.scores[]', type='number')
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation.scores'].type_validators
-        assert len(type_validators) == 1
-        assert isinstance(type_validators[0], ListValidator)
-        type_validators = compiled_schema.fields['accommodation.scores[]'].type_validators
-        assert len(type_validators) == 1
-        assert isinstance(type_validators[0], NumberValidator)
+        validators = compiled_schema.fields['accommodation.scores'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, ListValidator)
+        validators = compiled_schema.fields['accommodation.scores[]'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, NumberValidator)
     
-    def test_it_doesnt_cache_a_type_validator_for_rules_without_type(self):
+    def test_it_caches_an_any_validator_for_rules_without_type(self):
         def schema():
             optional('metadata')
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['metadata'].type_validators
-        assert len(type_validators) == 0
+        validators = compiled_schema.fields['metadata'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, AnyValidator)
     
-    def test_it_caches_a_type_validator_that_supports_preprocessing(self):
+    def test_it_caches_a_validator_that_supports_preprocessing(self):
         def schema():
             optional('accommodation.phone', type='string', regex=r'[\(\)\-\+ 0-9]+')
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation.phone'].type_validators
-        assert len(type_validators) == 1
-        assert isinstance(type_validators[0], StringValidator)
+        validators = compiled_schema.fields['accommodation.phone'].validators
+        assert len(validators) == 1
+        assert isinstance(validators[0].run, StringValidator)
     
     def test_it_doesnt_cache_parents_object_validator_if_parent_already_has_object_validator(self):
         def schema():
@@ -323,8 +324,8 @@ class TestSchemaCompiler:
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation'].type_validators
-        assert len(type_validators) == 1
+        validators = compiled_schema.fields['accommodation'].validators
+        assert len(validators) == 1
 
     def test_it_overwrites_object_validator_that_came_from_nested_field(self):
         def schema():
@@ -333,8 +334,8 @@ class TestSchemaCompiler:
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation'].type_validators
-        assert len(type_validators) == 1
+        validators = compiled_schema.fields['accommodation'].validators
+        assert len(validators) == 1
     
     def test_it_doesnt_cache_parents_list_validator_if_parent_already_has_list_validator(self):
         def schema():
@@ -343,8 +344,8 @@ class TestSchemaCompiler:
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation.scores'].type_validators
-        assert len(type_validators) == 1
+        validators = compiled_schema.fields['accommodation.scores'].validators
+        assert len(validators) == 1
 
     def test_it_overwrites_list_validator_that_came_from_child_of_list(self):
         def schema():
@@ -353,8 +354,8 @@ class TestSchemaCompiler:
         
         compiled_schema = compile(schema)
 
-        type_validators = compiled_schema.fields['accommodation.scores'].type_validators
-        assert len(type_validators) == 1
+        validators = compiled_schema.fields['accommodation.scores'].validators
+        assert len(validators) == 1
     
     def test_it_raises_when_root_is_optional(self):
         def schema():
@@ -366,3 +367,48 @@ class TestSchemaCompiler:
         exception = exception_info.value
         assert exception.type == 'optional_not_allowed'
         assert exception.field == '.'
+    
+    def test_it_caches_the_any_validator(self):
+        def schema():
+            optional('metadata', type='any?')
+        
+        compiled_schema = compile(schema)
+
+        field = compiled_schema.fields['metadata']
+        assert field.nullable == True
+        assert len(field.validators) == 1
+        assert isinstance(field.validators[0].run, AnyValidator)
+    
+    def test_it_makes_any_the_default_type(self):
+        def schema():
+            required('metadata')
+
+        compiled_schema = compile(schema)
+
+        field = compiled_schema.fields['metadata']
+        assert len(field.validators) == 1
+        assert isinstance(field.validators[0].run, AnyValidator)
+
+    def test_it_raises_when_nullable_field_is_marked_non_nullable(self):
+        def schema():
+            required('metadata', type='object?')
+            required('metadata', type='object')
+        
+        with pytest.raises(SchemaError) as exception_info:
+            compiled_schema = compile(schema)
+        
+        exception = exception_info.value
+        assert exception.type == 'already_nullable'
+        assert exception.field == 'metadata'
+    
+    def test_it_raises_when_non_nullable_field_is_marked_nullable(self):
+        def schema():
+            optional('metadata', type='object')
+            optional('metadata', type='object?')
+        
+        with pytest.raises(SchemaError) as exception_info:
+            compile(schema)
+        
+        exception = exception_info.value
+        assert exception.type == 'already_non_nullable'
+        assert exception.field == 'metadata'

@@ -4,16 +4,36 @@ from collections import defaultdict
 
 class Schema:
     def __init__(self):
-        self.fields = defaultdict(FieldDefinition)
+        self.fields = defaultdict(Field)
         self.ignore_extra_fields = False
 
-class FieldDefinition:
+class Field:
     def __init__(self):
         self.strictness = 'unknown'
-        self.nullable = None
-        self.is_implicit = True
-        self.type = None
-        self.type_validators = []
+        self.validators = []
+        self.nullable = False
+
+    def has_explicit_type(self):
+        for validator in self.validators:
+            if not validator.is_implicit:
+                return True
+        
+        return False
+    
+    def is_nullable_object(self):
+        for validator in self.validators:
+            if validator.type == 'object' and validator.nullable:
+                return True
+        
+        return False
+
+
+class Validator:
+    def __init__(self, type, nullable, is_implicit, validation_function):
+        self.type = type
+        self.nullable = nullable
+        self.is_implicit = is_implicit
+        self.run = validation_function
 
 _active_schema = None
 
@@ -41,91 +61,89 @@ def ignore_extra_fields():
     _active_schema.ignore_extra_fields = True
 
 def _process(field_name, type, is_required, **kwargs):
-    fields = _active_schema.fields
+    if type is not None:
+        nullable = type.endswith('?')
+        is_implicit = False
+        type = type.rstrip('?')
+    else:
+        type = 'any'
+        nullable = False
+        is_implicit = True
 
-    is_implicit = False
-    strictness = 'required' if is_required else 'optional' 
-
+    strictness = 'required' if is_required else 'optional'
     if type == 'list':
-        fields[field_name + '[]'].strictness = strictness
+        _active_schema.fields[field_name + '[]'].strictness = strictness
     
-    nullable = False
-    if type and type.endswith('?'):
-        type = type[:-1]
-        nullable = True
-    
-    while True:
-        field = fields[field_name]
-        field.type = type
+    while field_name:
+        field = _active_schema.fields[field_name]
+        _raise_on_schema_errors(field, field_name, strictness, nullable, is_implicit)
+        
+        if not is_implicit and type in ['object', 'list']:
+            _remove_implicit_validators(field, type)
+        if not (type in ['object', 'list'] and is_implicit and _validator_exists(field.validators, type)):
+            validation_function = _get_validation_function(type, field_name, kwargs)
+            validator = Validator(type, nullable, is_implicit, validation_function)
+            field.validators.append(validator)
 
-        if field.strictness == 'required' and strictness == 'optional':
+        field.nullable = field.nullable or nullable
+        field.strictness = strictness if field.strictness == 'unknown' else field.strictness
+
+        field_name, type, strictness = _get_parent_field(field_name, strictness)
+        nullable = False
+        kwargs = {}
+        is_implicit = True
+
+def _raise_on_schema_errors(field, field_name, strictness, nullable, is_implicit):
+    if field.strictness == 'required' and strictness == 'optional':
+        raise SchemaError(
+            "Field '" + field_name + "' marked as optional, but it's already required.",
+            type='already_required',
+            field=field_name.strip('[]')
+        )
+    elif field.strictness == 'optional' and strictness == 'required':
+        raise SchemaError(
+            "Field '" + field_name + "' marked as required, but it's already optional.",
+            type='already_optional',
+            field=field_name.strip('[]')
+        )
+    
+    if not is_implicit and field.has_explicit_type() and field.nullable != nullable:
+        if nullable:
             raise SchemaError(
-                "Field '" + field_name + "' marked as optional, but it's already required.",
-                type='already_required',
+                "Field '" + field_name + "' marked as nullable, but it's already non-nullable.",
+                type='already_non_nullable',
                 field=field_name.strip('[]')
             )
-        elif field.strictness == 'optional' and strictness == 'required':
-            raise SchemaError(
-                "Field '" + field_name + "' marked as required, but it's already optional.",
-                type='already_optional',
-                field=field_name.strip('[]')
-            )
-        
-        if not is_implicit and not field.is_implicit and field.nullable != nullable:
-            if nullable:
-                raise SchemaError(
-                    "Field '" + field_name + "' marked as nullable, but it's already non-nullable.",
-                    type='already_non_nullable',
-                    field=field_name.strip('[]')
-                )
-            else:
-                raise SchemaError(
-                    "Field '" + field_name + "' marked as non-nullable, but it's already nullable.",
-                    type='already_nullable',
-                    field=field_name.strip('[]')
-                )
-        elif field.is_implicit:
-            field.nullable = nullable
-            field.is_implicit = is_implicit
-
-        type_validator = None
-        if type and type != 'any':
-            type_validator_builder = getattr(type_validators, type.capitalize() + 'Validator', None)
-            if type_validator_builder:
-                type_validator = type_validator_builder(field_name, **kwargs)
-            else:
-                try:
-                    type_validator = getattr(type_validators, 'validate_' + type)
-                except AttributeError:
-                    raise SchemaError(f"Type `{type}` specified for field `{field_name}` is invalid.")
-        
-        if type in [ 'object', 'list' ] and not is_implicit:
-            field.type_validators = [ type_validator for type_validator in field.type_validators if not type_validator.is_implicit ]
-        if type not in [ 'object', 'list' ] or len([ type_validator for type_validator in field.type_validators if not type_validator.is_implicit ]) == 0:
-            field.strictness = strictness if field.strictness == 'unknown' else field.strictness
-            if type_validator:
-                type_validator.is_implicit = is_implicit
-                field.type_validators.append(type_validator)
-
-        if field_name == '.':
-            break
-        elif field_name.endswith('[]'):
-            field_name = field_name[:-2]
-            type = 'list'
-            nullable = False
-            kwargs = {}
-            is_implicit = True
-        elif '.' in field_name:
-            field_name = field_name.rsplit('.', 1)[0]
-            strictness = 'unknown'
-            type = 'object'
-            nullable = False
-            kwargs = {}
-            is_implicit = True
         else:
-            field_name = '.'
-            strictness = 'required'
-            type = 'object'
-            nullable = False
-            kwargs = {}
-            is_implicit = True
+            raise SchemaError(
+                "Field '" + field_name + "' marked as non-nullable, but it's already nullable.",
+                type='already_nullable',
+                field=field_name.strip('[]')
+            )
+
+def _get_validation_function(type, field_name, kwargs):
+    type_validator_builder = getattr(type_validators, type.capitalize() + 'Validator', None)
+    if type_validator_builder:
+        return type_validator_builder(field_name, **kwargs)
+    else:
+        raise SchemaError(f"Type `{type}` specified for field `{field_name}` is invalid.")
+
+def _remove_implicit_validators(field, type):
+    field.validators = [ validator for validator in field.validators if validator.type != type or not validator.is_implicit ]
+
+def _validator_exists(validators, type):
+    for validator in validators:
+        if validator.type == type:
+            return True
+    
+    return False
+
+def _get_parent_field(field_name, strictness):
+    if field_name == '.':
+        return None, None, None
+    elif field_name.endswith('[]'):
+        return field_name[:-2], 'list', strictness
+    elif '.' in field_name:
+        return field_name.rsplit('.', 1)[0], 'object', 'unknown'
+    else:
+        return '.', 'object', 'required'

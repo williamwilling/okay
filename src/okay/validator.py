@@ -8,7 +8,7 @@ def validate(schema, document, message_values=None):
     _validator._reset(schema, document)
     _validator._validate()
     _validator._report_missing_fields()
-    _validator._report_extra_fields()  
+    _validator._report_extra_fields()
 
     if message_values:
         for message in _validator.messages:
@@ -40,20 +40,20 @@ class Validator:
     def _validate(self):
         for field_name, fields in self._index.fields.items():
             for field in fields:
-                if field.value is None:
-                    if not self._schema.fields[field_name].nullable:
-                        message = Message(
-                            type='null_value',
-                            field=field.path,
-                            expected={}
-                        )
-                        if self._schema.fields[field_name].type is not None:
-                            message.expected['type'] = self._schema.fields[field_name].type
+                for validator in self._schema.fields[field_name].validators:
+                    if field.value is None:
+                        if not validator.nullable:
+                            message = Message(
+                                type='null_value',
+                                field=field.path,
+                                expected={
+                                    'type': validator.type
+                                }
+                            )
 
-                        self.messages.append(message)
-                else:
-                    for type_validator in self._schema.fields[field_name].type_validators:
-                        message = type_validator(field.path, field.value)
+                            self.messages.append(message)
+                    else:
+                        message = validator.run(field.path, field.value)
                         if not message is None:
                             self.messages.append(message)
     
@@ -77,7 +77,7 @@ class Validator:
 
             parent = self._index.fields.get(parent_name, [])
             for parent_field in parent:
-                if parent_field.value is None and self._schema.fields[parent_field.path].nullable:
+                if parent_field.value is None and self._schema.fields[parent_field.path].is_nullable_object():
                     continue
 
                 if parent_field.value is None and field.strictness == 'required':
