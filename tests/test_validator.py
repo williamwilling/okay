@@ -1085,6 +1085,24 @@ class TestValidator:
         }
         assert messages[1].type == 'missing_field'
         assert messages[1].field == 'author.name'
+    
+    def test_it_passes_parameters_to_custom_validator(self):
+        seek_shelter = False
+        def weather_validator(field, value, global_warning):
+            nonlocal seek_shelter
+            if value == 'tornado' and global_warning:
+                seek_shelter = True
+        
+        def schema():
+            required('weather', type='custom', validator=weather_validator, global_warning=True)
+        
+        document = {
+            'weather': 'tornado'
+        }
+        messages = validate(schema, document)
+
+        assert len(messages) == 0
+        assert seek_shelter
         
 
 def empty_schema():
