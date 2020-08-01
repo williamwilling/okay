@@ -312,6 +312,28 @@ def book_schema():
     optional('summary', type='custom', validator=is_capitalized)
 ```
 
+You can add custom parameters to your validation function.
+
+```python
+from okay import Message
+import datetime
+
+def schema():
+    def timestamp(field, value, allow_future=True, allow_past=True):
+        if not allow_future and value > datetime.now():
+            return Message(
+                type='timestamp_too_futuristic',
+                field=field
+            )
+        if not allow_past and value < datetime.now():
+            return Message(
+                type='timestamp_stuck_in_past',
+                field=field
+            )
+
+    required('publication_date', type='custom', validator=timestamp, allow_future=False)
+```
+
 You can also use custom validators to validate fields that depend on each other.
 
 ```python

@@ -109,7 +109,7 @@ The value must pass validation as specified by a [custom validator](user-guide.m
 
 Parameter   | Description
 ------------|------------
-`validator` | Required. The function that will validate the value. It must accept two parameters: the field name and the field value. It must return `None` if validation succeeds or a [`Message`](#message) object if validation fails.
+`validator` | Required. The function that will validate the value. It must accept two parameters: the field name and the field value. Additionally, it can accept any number of keyword arguments. It must return `None` if validation succeeds or a [`Message`](#message) object if validation fails.
 
 ### int
 
