@@ -2,39 +2,6 @@ from . import type_validators
 from .schema_error import SchemaError
 from collections import defaultdict
 
-class Schema:
-    def __init__(self):
-        self.fields = defaultdict(Field)
-        self.ignore_extra_fields = False
-
-class Field:
-    def __init__(self):
-        self.strictness = 'unknown'
-        self.validators = []
-        self.nullable = False
-
-    def has_explicit_type(self):
-        for validator in self.validators:
-            if not validator.is_implicit:
-                return True
-        
-        return False
-    
-    def is_nullable_object(self):
-        for validator in self.validators:
-            if validator.type == 'object' and validator.nullable:
-                return True
-        
-        return False
-
-
-class Validator:
-    def __init__(self, type, nullable, is_implicit, validation_function):
-        self.type = type
-        self.nullable = nullable
-        self.is_implicit = is_implicit
-        self.run = validation_function
-
 _active_schema = None
 
 def compile(schema):
@@ -79,11 +46,11 @@ def _process(field_name, type, is_required, **kwargs):
         _raise_on_schema_errors(field, field_name, strictness, nullable, is_implicit)
         
         if not is_implicit and type in ['object', 'list']:
-            _remove_implicit_validators(field, type)
-        if not (type in ['object', 'list'] and is_implicit and _validator_exists(field.validators, type)):
+            field.remove_implicit_rule_for(type)
+        if not (type in ['object', 'list'] and is_implicit and field.has_rule_for(type)):
             validation_function = _get_validation_function(type, field_name, kwargs)
-            validator = Validator(type, nullable, is_implicit, validation_function)
-            field.validators.append(validator)
+            rule = Rule(type, nullable, is_implicit, validation_function)
+            field.rules.append(rule)
 
         field.nullable = field.nullable or nullable
         field.strictness = strictness if field.strictness == 'unknown' else field.strictness
@@ -128,16 +95,6 @@ def _get_validation_function(type, field_name, kwargs):
     else:
         raise SchemaError(f"Type `{type}` specified for field `{field_name}` is invalid.")
 
-def _remove_implicit_validators(field, type):
-    field.validators = [ validator for validator in field.validators if validator.type != type or not validator.is_implicit ]
-
-def _validator_exists(validators, type):
-    for validator in validators:
-        if validator.type == type:
-            return True
-    
-    return False
-
 def _get_parent_field(field_name, strictness):
     if field_name == '.':
         return None, None, None
@@ -147,3 +104,48 @@ def _get_parent_field(field_name, strictness):
         return field_name.rsplit('.', 1)[0], 'object', 'unknown'
     else:
         return '.', 'object', 'required'
+
+
+class Schema:
+    def __init__(self):
+        self.fields = defaultdict(Field)
+        self.ignore_extra_fields = False
+
+
+class Field:
+    def __init__(self):
+        self.strictness = 'unknown'
+        self.rules = []
+        self.nullable = False
+
+    def has_explicit_type(self):
+        for rule in self.rules:
+            if not rule.is_implicit:
+                return True
+        
+        return False
+    
+    def is_nullable_object(self):
+        for rule in self.rules:
+            if rule.type == 'object' and rule.nullable:
+                return True
+        
+        return False
+    
+    def has_rule_for(self, type):
+        for rule in self.rules:
+            if rule.type == type:
+                return True
+        
+        return False
+    
+    def remove_implicit_rule_for(self, type):
+        self.rules = [ rules for rule in self.rules if rule.type != type or not rule.is_implicit ]
+
+
+class Rule:
+    def __init__(self, type, nullable, is_implicit, validation_function):
+        self.type = type
+        self.nullable = nullable
+        self.is_implicit = is_implicit
+        self.validate = validation_function

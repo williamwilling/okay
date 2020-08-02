@@ -40,20 +40,20 @@ class Validator:
     def _validate(self):
         for field_name, fields in self._index.fields.items():
             for field in fields:
-                for validator in self._schema.fields[field_name].validators:
+                for rule in self._schema.fields[field_name].rules:
                     if field.value is None:
-                        if not validator.nullable:
+                        if not rule.nullable:
                             message = Message(
                                 type='null_value',
                                 field=field.path,
                                 expected={
-                                    'type': validator.type
+                                    'type': rule.type
                                 }
                             )
 
                             self.messages.append(message)
                     else:
-                        message = validator.run(field.path, field.value)
+                        message = rule.validate(field.path, field.value)
                         if not message is None:
                             self.messages.append(message)
     
