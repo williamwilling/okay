@@ -58,7 +58,7 @@ language:       extra_field
 You can use pip to install the latest version of Okay directly from Github.
 
 ```
-pip install git+https://github.com/trivago/okay@v1#egg=trv-okay
+pip install git+https://github.com/williamwilling/okay@v2#egg=okay-validator
 ```
 
 ## Writing a schema
