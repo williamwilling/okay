@@ -210,6 +210,20 @@ def schema():
     required('genres[]', type='string')            # not nullable
 ```
 
+If you want to make a field nullable, but you don't care about its type, you can use `any`.
+
+```python
+from okay.schema import *
+
+def schema():
+    # Type doesn't matter, null is allowed.
+    required('custom_data', type='any?')
+
+    # Type doesn't matter, but null is not allowed. This is the
+    # default, so you don't have to specify the type.
+    required('metadata')
+```
+
 ### Unspecified fields
 
 By default, the validator reports any fields it finds in a document that aren't explicitly specified in your schema.

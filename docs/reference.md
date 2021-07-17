@@ -9,6 +9,7 @@
   * [Message](#message)
   * [SchemaError](#schema-error)
 * [Type validators](#type-validators)
+  * [any](#any)
   * [bool](#bool)
   * [custom](#custom)
   * [int](#int)
