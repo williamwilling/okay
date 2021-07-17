@@ -525,6 +525,35 @@ class TestValidator:
         assert message.type == 'extra_field'
         assert message.field == 'ratings[1].score'
     
+    def test_it_ignores_an_extra_nested_field(self):
+        def schema():
+            ignore_extra_fields()
+        
+        document = {
+            'accommodation': {
+                'name': 'Hotel'
+            }
+        }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
+    def test_it_ignores_an_extra_field_nested_in_a_list(self):
+        def schema():
+            ignore_extra_fields()
+        
+        document = {
+            'ratings': [{
+                'aspect': 'staff'
+            }, {
+                'aspect': 'cleanliness',
+                'score': 3
+            }]
+        }
+        messages = validate(schema, document)
+
+        assert messages == []
+    
     def test_it_adds_specified_values_to_missing_field_message(self):
         def schema():
             required('metadata')
