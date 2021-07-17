@@ -8,6 +8,7 @@
   * [Lists](#lists)
   * [Nullable types](#nullable-types)
   * [Unspecified fields](#unspecified-fields)
+  * [Implicit validation rules](#implicit-validation-rules)
   * [Custom validators](#custom-validators)
   * [Using regular code](#using-regular-code)
   * [Passing parameters](#passing-parameters)
@@ -255,6 +256,8 @@ validation_messages = validate(schema, book)
 for message in validation_messages:
     print(f'{message.field}:\t{message.type}')
 ```
+
+### Implicit validation rules
 
 There are two situations where the validator creates implicit validation rules:
 
@@ -637,8 +640,33 @@ with open('books.json') as file:
 
 ### Validation messages
 
-Validation messages aren't returned as human-readable strings. Instead, they're `Message`-objects that contain all data that's relevant to the validation error. This way, you are completely flexible in how you want to handle validation messages.
+Validation messages aren't returned as human-readable strings. Instead, they're `Message`-objects that contain all data that's relevant to the validation error. This way, you are completely flexible in how you want to handle validation messages. Here's an example of a validation error that tells you the value for field `"age"` is too low.
 
-A validation message always has a `type` property that indicates why validation failed. It usually also has a `field` property that tells you the name of the field that didn't pass validation. You can create messages without a `field`, though, in case validation of the entire document fails, like in the [example above](#dealing-with-large-files). Whenever possible, a validation message will include an `expected` property to let you know what data in the document should've been. For example, if a field's type is invalid, `expected` contains the type the field should've had, and if a number field's value is too large, `expected` contains the maximum value allowed.
+```python
+Message(
+    type='number_too_small',
+    field='age',
+    expected={
+        'max': None,
+        'min': 18,
+        'options': None
+    }
+)
+```
 
-When you return a `Message` object from a [custom validator](#custom-validators), you can add any property you like, but it's probably useful to use the ones described above whenever possible. It will make formatting validation messages much easier. Also, if you [add context information to your validation messages](#identifying-documents), you will have to change the code that formats the messages accordingly.
+A validation message always has a `type` property that indicates why validation failed. It usually also has a `field` property that tells you the name of the field that didn't pass validation. You can create your own messages without a `field`, though, in case validation of the entire document fails, like in this excerpt from the [example above](#dealing-with-large-files).
+
+```python
+except json.JSONDecodeError as e:
+    # Treat invalid JSON as a validation error.
+    validation_messages = [Message(
+        type='invalid_json',
+        document_number=i,
+        message=e.msg,
+        position=e.pos
+    )]
+```
+
+Whenever possible, a validation message will include an `expected` property. `expected` is an object with all the parameters that were used for validation. For example, if a field's type is invalid, `expected` contains a field `type` that tells you what the type should've been. The `expected` object contains all validation parameters; not just the one violated. For example, if a field's value is too large, `expected` contains the field `max` with the maximum value allowed, but also the fields `min` with the minimum value allowed, and `options` with a list of acceptable numbers. You can find the [fields for each validation message type](reference.md#validation-messages) in the Reference Manual.
+
+When you return a `Message` object from a [custom validator](#custom-validators), you can add any property you like, but it's probably useful to use `type`, `field`, and `expected` whenever possible. It will make formatting validation messages much easier.
