@@ -199,7 +199,7 @@ def schema():
 
 ## Validation messages
 
-You should ignore any validation message field that isn't listed here. Future versions of Okay may add new fields to validation messages, which is not considered a breaking change.
+You should ignore any validation message field that isn't listed here. Future versions of Okay may add new fields to validation messages, which is not considered a breaking change. If you [pass custom validation fields to the validator](user-guide.md#identifying-documents), they'll overwrite a validation message's regular fields, so even if a future version of Okay adds a validation field with the same name as your custom field, this will not break your code.
 
 ### invalid_number_option
 

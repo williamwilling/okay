@@ -542,6 +542,8 @@ Sample output:
 7:author        invalid_type
 ```
 
+Custom fields overwrite a validation message's regular fields, so you may want to avoid using the names `type`, `field`, or `expected` for your custom fields.
+
 If your documents contain some kind of unique ID, you may be tempted to use that instead of the document number, but it's probably better to use both. Even if the ID is required, that's no guarantee all documents have one; that's why you're validating. Also, the IDs that are there may not be unique, even though they should be. It's fine to add the ID to the validation message if it exists, but you should also add the document number, just in case. The following example adds the ISBN (a unique identifier for books) to the validation messages if possible, but it doesn't rely on them.
 
 ```python

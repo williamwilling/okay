@@ -50,6 +50,7 @@ _Historical note_: When I started this project, I had a design log instead of a 
   * [Validation messages for strings](#validation-messages-for-strings)
 * [Custom validation for entire documents](#custom-validation-for-entire-documents)
 * [Parents that are null](#parents-that-are-null)
+* [Custom fields for validation messages](#custom-fields-for-validation-messages)
 
 ## Background
 
@@ -1520,3 +1521,17 @@ def schema():
 All of this to say that I'd rather not throw `SchemaError`, despite the fact that `author` can't be both a string and have children.
 
 Going back to the first example, if the parent is a non-nullable object, but it is `null` nonetheless, the more predictable option is to report both `null_value` and `missing_field`. If `author` has a lot of children, this will lead to a lot of messages, but I think that's better than leaving the user of the library guessing as to which validation messages we exclude for the sake of conciseness. In the same vein, we should then also report both `invalid_type` and `missing_field` when the parent is a nullable non-object.
+
+## Custom fields for validation messages
+
+As described in the User Guide, you can [pass custom fields to the validator which will be included in all validation messages](user-guide.md#identifying-documents).
+
+> You'll often deal with the situation where a single file contains multiple documents. However, the validator doesn't understand the concept of multiple documents: it deals with documents one by one. As a consequence, validation messages don't include information on exactly which document failed validation. Fortunately, Okay allows you to pass custom fields to the validator, which it will then add to all validation messages.
+
+The Reference Manual mentions that [you should ignore unknown fields in validation messages](reference.md#validation-messages).
+
+> You should ignore any validation message field that isn't listed here. Future versions of Okay may add new fields to validation messages, which is not considered a breaking change.
+
+Of course, you don't have to ignore the custom fields you passed to the validator yourself; perhaps the Reference Manual should mention that. There's a larger problem, though. What if you pass a custom field with the name `priority` and a later version of Okay starts using that same name in its validation messages? The documentation may say it doesn't consider this a breaking change, but is it?
+
+The point of a non-breaking change is that your code still works the same, even after upgrading the library. If Okay suddenly starts overwriting your custom validation fields, then clearly that's a breaking change, regardless of what the documentation says. On the other hand, if your custom validation fields overwrite Okay's validation fields, then there's no problem. Sure, your code can't use the new validation fields without some changes, but it wasn't doing that anyway, because those fields didn't exist yet when it was written.
