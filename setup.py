@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='okay-validator',
-    version='2.0.0',
+    version='2.0.1',
     description='A library for validating Python dictionaries.',
     long_description=long_description,
     long_description_content_type='text/markdown',
