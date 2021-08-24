@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.1
+
+### Fixes
+
+* Fixes [Validating one object with different schemas overwrites previous validation messages](https://github.com/williamwilling/okay/issues/2).
+
 ## v2.0.0
 
 ### Breaking changes
