@@ -1148,7 +1148,25 @@ class TestValidator:
 
         assert len(messages) == 0
         assert seek_shelter
-        
+
+    def test_it_does_not_overwrite_previous_validation_messages(self):
+        def schema():
+            required("name", type="string")
+
+        lounge_chair = {
+            'name': 'Eames Lounge Chair',
+            'price_USD': 9783
+        }
+        aluminium_chair = {
+            'name': 'EA 117'
+        }
+        messages = validate(schema, lounge_chair)
+        _ = validate(schema, aluminium_chair)
+
+        assert len(messages) == 1
+        message = messages[0]
+        assert message.type == 'extra_field'
+        assert message.field == 'price_USD'
 
 def empty_schema():
     pass

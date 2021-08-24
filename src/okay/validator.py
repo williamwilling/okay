@@ -35,7 +35,7 @@ class Validator:
         self._index = create_index(document, self._schema.fields.keys())
         self._document = document
         self._ignore_extra_fields = False
-        self.messages.clear()
+        self.messages = []
     
     def _validate(self):
         for field_name, fields in self._index.fields.items():
